@@ -1,0 +1,19 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+pydantic==2.14.3
+jinja2==3.1.5
+python-multipart==0.0.20
+psycopg[binary]==3.2.3
+python-dotenv==1.2.4
+
+# agente (fase 2)
+langgraph==1.2.22
+langgraph-checkpoint-sqlite==3.1.3
+langchain-core==1.8.1
+langchain-google-genai==4.5.0
+python-telegram-bot==22.8
+
+# testes
+pytest==8.3.4
+httpx==0.28.1
