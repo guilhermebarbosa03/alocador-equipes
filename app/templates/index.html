@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Painel{% endblock %}
+{% block content %}
+<h1>Painel</h1>
+
+<div class="grid">
+  <div class="card">
+    <div class="muted small">Tarefas em andamento</div>
+    <div class="stat">{{ ativas|length }}</div>
+  </div>
+  <div class="card">
+    <div class="muted small">Funcionários ativos</div>
+    <div class="stat">{{ total_funcionarios }}</div>
+  </div>
+  <div class="card">
+    <div class="muted small">Livres hoje (08h–17h)</div>
+    <div class="stat">{{ livres_hoje|length }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Tarefas em andamento</h2>
+  {% if ativas %}
+  <div class="table-scroll"><table>
+    <tr><th>#</th><th>Tarefa</th><th>Quando</th><th>Tipo</th><th>Status</th></tr>
+    {% for t in ativas %}
+    <tr>
+      <td>{{ t.id }}</td>
+      <td><a href="/tarefas/{{ t.id }}">{{ t.titulo }}</a>{% if t.local %}<div class="muted small">{{ t.local }}</div>{% endif %}</td>
+      <td class="small">{{ t.inicio|dt }}<br>{{ t.fim|dt }}</td>
+      <td>{{ t.tipo }}</td>
+      <td><span class="badge b-{{ t.status }}">{{ STATUS_LABEL[t.status] }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted">Nenhuma tarefa em andamento. <a href="/tarefas/nova">Criar tarefa</a></p>
+  {% endif %}
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Livres hoje</h2>
+    {% for a in livres_hoje %}
+      <div><a href="/funcionarios/{{ a.funcionario.id }}">{{ a.funcionario.nome }}</a>
+        <span class="muted small">· {{ a.funcionario.papel }}</span></div>
+    {% else %}<p class="muted">Ninguém livre o dia todo.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Ausências nos próximos 14 dias</h2>
+    {% for i in ausencias %}
+      <div><a href="/funcionarios/{{ i.funcionario_id }}">{{ i.funcionario.nome }}</a>
+        <span class="muted small">· {{ i.motivo }} · {{ i.inicio|d }} a {{ i.fim|d }}</span></div>
+    {% else %}<p class="muted">Nenhuma ausência registrada.</p>{% endfor %}
+  </div>
+</div>
+{% endblock %}

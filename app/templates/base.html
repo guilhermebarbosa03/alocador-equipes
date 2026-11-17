@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Alocador{% endblock %} · Alocador</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #667085; --line: #e3e6eb;
+    --accent: #1f6feb; --accent-fg: #fff; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --ok-bg: #e6f4ea; --warn-bg: #fff4d6; --bad-bg: #fde8e8; --info-bg: #e8f0fe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --card: #171b23; --fg: #e6e9ef; --muted: #98a2b3; --line: #2a303b;
+      --accent: #4c8dff; --accent-fg: #fff; --ok: #4ac26b; --warn: #d4a72c; --bad: #ff6b6b;
+      --ok-bg: #12301c; --warn-bg: #33290d; --bad-bg: #3a1618; --info-bg: #15233d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+  header { background: var(--card); border-bottom: 1px solid var(--line); }
+  header .wrap { display: flex; gap: 20px; align-items: center; padding: 12px 16px; flex-wrap: wrap; }
+  header strong { font-size: 17px; }
+  nav a { color: var(--muted); text-decoration: none; margin-right: 14px; }
+  nav a:hover { color: var(--fg); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  h3 { font-size: 15px; margin: 0 0 8px; }
+  a { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); font-weight: 600; }
+  .table-scroll { overflow-x: auto; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  input, select, textarea {
+    display: block; width: 100%; margin-top: 4px; padding: 7px 9px; font: inherit; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  }
+  input[type=checkbox] { display: inline; width: auto; margin-right: 6px; }
+  textarea { min-height: 70px; }
+  .row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  button, .btn {
+    display: inline-block; padding: 7px 14px; font: inherit; font-weight: 600; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); text-decoration: none;
+  }
+  button.sec, .btn.sec { background: transparent; color: var(--accent); }
+  button.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+  button.mini { padding: 3px 9px; font-size: 13px; }
+  form.inline { display: inline; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--info-bg); }
+  .b-alocada, .b-confirmada, .b-concluida { background: var(--ok-bg); color: var(--ok); }
+  .b-proposta, .b-parcial { background: var(--warn-bg); color: var(--warn); }
+  .b-cancelada { background: var(--bad-bg); color: var(--bad); }
+  .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+  .flash.ok { background: var(--ok-bg); color: var(--ok); }
+  .flash.bad { background: var(--bad-bg); color: var(--bad); }
+  .score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .faltam { color: var(--bad); font-weight: 600; }
+  ul.motivos { margin: 4px 0 0; padding-left: 18px; color: var(--bad); font-size: 13px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .chips span { display: inline-block; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; margin: 0 4px 4px 0; font-size: 13px; }
+  .stat { font-size: 26px; font-weight: 700; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <strong>Alocador</strong>
+  <nav>
+    <a href="/">Painel</a>
+    <a href="/funcionarios">Funcionários</a>
+    <a href="/tarefas/nova">Nova tarefa</a>
+    <a href="/docs">API</a>
+  </nav>
+</div></header>
+<main class="wrap">
+  {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+  {% if erro %}<div class="flash bad">{{ erro }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

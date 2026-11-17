@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Nova tarefa{% endblock %}
+{% block content %}
+<h1>Nova tarefa</h1>
+{% set v = form %}
+<form method="post" action="/tarefas">
+  <div class="card">
+    <h2>Dados do serviço</h2>
+    <div class="row">
+      <label>Título <input name="titulo" required value="{{ v.titulo or '' }}" placeholder="Manutenção preventiva subestação X"></label>
+      <label>Tipo
+        <select name="tipo">
+          <option value="interna" {% if v.tipo == 'interna' %}selected{% endif %}>Interna</option>
+          <option value="campo" {% if v.tipo == 'campo' %}selected{% endif %}>Campo / viagem</option>
+        </select>
+      </label>
+      <label>Local <input name="local" value="{{ v.local or '' }}"></label>
+      <label>Contrato <input name="contrato" value="{{ v.contrato or '' }}" placeholder="CT-2026-014"></label>
+    </div>
+    <div class="row">
+      <label>Início <input type="datetime-local" name="inicio" required value="{{ v.inicio or '' }}"></label>
+      <label>Fim <input type="datetime-local" name="fim" required value="{{ v.fim or '' }}"></label>
+      <label>Horas por pessoa (opcional)
+        <input name="horas_por_pessoa" type="number" step="0.5" min="0.5" value="{{ v.horas_por_pessoa or '' }}" placeholder="padrão: 8h por dia útil">
+      </label>
+      <label>Prioridade (1–5)
+        <input name="prioridade" type="number" min="1" max="5" value="{{ v.prioridade or 3 }}">
+      </label>
+    </div>
+    <label>Descrição <textarea name="descricao">{{ v.descricao or '' }}</textarea></label>
+  </div>
+
+  <div class="card">
+    <h2>Equipe necessária</h2>
+    <p class="muted small">Uma linha por função. Especialidades no formato <code>nome:nível mínimo</code>, separadas por vírgula.
+      Linhas sem função são ignoradas.</p>
+    {% for i in range(3) %}
+    <div class="row" style="border-top:1px solid var(--line); padding-top:10px">
+      <label>Função <input name="req_papel_{{ i }}" list="papeis" value="{{ v['req_papel_' ~ i] or '' }}" {% if i == 0 %}required{% endif %} placeholder="tecnico"></label>
+      <label>Quantidade <input name="req_qtd_{{ i }}" type="number" min="1" value="{{ v['req_qtd_' ~ i] or 1 }}"></label>
+      <label>Especialidades exigidas <input name="req_esp_{{ i }}" value="{{ v['req_esp_' ~ i] or '' }}" placeholder="Elétrica:3, SPDA:2"></label>
+      <label>Certificações exigidas <input name="req_cert_{{ i }}" value="{{ v['req_cert_' ~ i] or '' }}" placeholder="NR10, NR35"></label>
+      <label>Desejáveis <input name="req_des_{{ i }}" value="{{ v['req_des_' ~ i] or '' }}" placeholder="Automação"></label>
+      <label>Experiência mínima (anos) <input name="req_exp_{{ i }}" type="number" step="0.5" min="0" value="{{ v['req_exp_' ~ i] or 0 }}"></label>
+    </div>
+    {% endfor %}
+    <datalist id="papeis">{% for p in papeis %}<option value="{{ p }}">{% endfor %}</datalist>
+  </div>
+
+  <button type="submit">Criar tarefa</button>
+</form>
+{% endblock %}
