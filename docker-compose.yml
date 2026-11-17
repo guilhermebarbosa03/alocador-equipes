@@ -1,0 +1,50 @@
+services:
+  db:
+    # Postgres com pgvector: o mesmo banco vai guardar os embeddings do RAG (fase 3)
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: alocacao
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-troque-esta-senha}
+      POSTGRES_DB: alocacao
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alocacao"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://alocacao:${POSTGRES_PASSWORD:-troque-esta-senha}@db:5432/alocacao
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  bot:
+    # Telegram por long polling: não precisa expor porta nenhuma
+    build: .
+    command: ["python", "-m", "app.bot"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://alocacao:${POSTGRES_PASSWORD:-troque-esta-senha}@db:5432/alocacao
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_USUARIOS_PERMITIDOS: ${TELEGRAM_USUARIOS_PERMITIDOS:-}
+      AGENTE_DB: /dados/agente.db
+    volumes:
+      - agente:/dados
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  agente:
