@@ -15,6 +15,7 @@ que pausam o grafo com interrupt() até o gestor escolher um botão.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 import sqlite3
 import threading
 import uuid
@@ -55,6 +56,7 @@ class Estado(TypedDict, total=False):
     args: dict | None
     previa: dict | None
     decisao: str | None
+    motivo: str | None  # por que o gestor forçou uma alocação contra as regras (vai para a auditoria)
     rota: str | None
     pendencias: list[int]
     resposta: str | None
@@ -84,7 +86,8 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
     # ---------- interpretar (única chamada ao modelo) ----------
 
     def no_interpretar(e: Estado) -> dict:
-        reset: dict[str, Any] = {"acao": None, "args": None, "previa": None, "decisao": None, "rota": None,
+        reset: dict[str, Any] = {"acao": None, "args": None, "previa": None, "decisao": None, "motivo": None,
+                                 "rota": None,
                                  "pendencias": [], "resposta": None, "audio": None}
         antigas = e["messages"][:-MAX_HISTORICO]
         limpeza = [RemoveMessage(id=m.id) for m in antigas if m.id]
@@ -209,12 +212,39 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
                 return {"rota": "fim", **_saida(f"Não consegui montar o pedido: {_msg(err)}")}
 
     def _previa(texto: str, opcoes: list[list[str]], **dados) -> dict:
-        previa = {"texto": texto, "opcoes": opcoes, "cancelar": "descartar", "sim": opcoes[0][0], **dados}
+        sim = dados.pop("sim", opcoes[0][0])
+        previa = {"texto": texto, "opcoes": opcoes, "cancelar": "descartar", "sim": sim, **dados}
         # a prévia entra no histórico para o modelo entender correções ("na verdade são 3")
         return {"rota": "aprovar", "previa": previa, "messages": [AIMessage(texto)]}
 
     def _fim(texto: str) -> dict:
         return {"rota": "fim", **_saida(texto)}
+
+    def _previa_forcar(texto: str, motivos: list[str], **dados) -> dict:
+        """Quem não cumpre as regras: mostra cada violação e deixa o gestor forçar, com motivo."""
+        texto += "\n" + "\n".join(f"• {m}" for m in motivos)
+        texto += "\n\nSe for preciso mesmo assim, toque em Forçar: pergunto o motivo e fica registrado na auditoria."
+        return _previa(texto, [["forcar", "Forçar mesmo assim"], ["descartar", "Descartar"]],
+                       sim=None, pedir_motivo=["forcar"], violacoes=motivos, **dados)
+
+    def _vaga_para(t, f, papel: str | None):
+        """A vaga aberta onde a pessoa entra: a da função pedida, a da função dela ou a única aberta."""
+        conf = Counter(x.requisito_id for x in t.alocacoes if x.status == "confirmada")
+        abertas = [r for r in t.requisitos if conf[r.id] < r.quantidade]
+        if not abertas:
+            raise sv.ErroNegocio(f"a equipe da #{t.id} já está completa. Para trocar alguém, diga quem sai")
+        if papel:
+            iguais = [r for r in abertas if norm(r.papel) == norm(papel)]
+            if not iguais:
+                raise sv.ErroNegocio(f"a #{t.id} não tem vaga aberta de '{papel}'. "
+                                     f"Vagas abertas: {', '.join(r.papel for r in abertas)}")
+            return iguais[0]
+        if iguais := [r for r in abertas if norm(r.papel) == norm(f.papel)]:
+            return iguais[0]
+        if len(abertas) == 1:
+            return abertas[0]
+        raise sv.ErroNegocio(f"em qual função {f.nome} entra? Vagas abertas na #{t.id}: "
+                             f"{', '.join(r.papel for r in abertas)}")
 
     def _preparar(db, nome: str, a) -> dict:
         if nome == "CriarTarefa":
@@ -261,7 +291,8 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
                 texto += f"\n⚠ {aviso}"
             equipe = [[v.requisito.id, x.funcionario.id] for v in prop.vagas for x in v.escolhidos]
             if not equipe:
-                return _fim(f"Não há ninguém viável para completar:\n{texto}")
+                return _fim(f"Não há ninguém viável para completar:\n{texto}\n\nPara incluir alguém mesmo assim, "
+                            f"peça \"coloca o Fulano na tarefa {t.id}\" e escolha Forçar.")
             return _previa(texto, [["confirmar", "Confirmar equipe"], ["descartar", "Descartar"]],
                            tarefa_id=t.id, equipe=equipe)
 
@@ -295,15 +326,31 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
             if aloc is None:
                 raise sv.ErroNegocio(f"{sai.nome} não está confirmado(a) na tarefa #{t.id}")
             entra, av, motivos = sv.avaliar_troca(db, aloc, a.entra_id)
+            if sv.ja_confirmado(t, entra.id):
+                return _fim(f"{entra.nome} já está confirmado(a) na #{t.id}.")
             if motivos:
-                return _fim(
-                    f"Não dá para colocar {entra.nome} no lugar de {sai.nome} na #{t.id}:\n"
-                    + "\n".join(f"• {m}" for m in motivos)
-                    + "\nSe precisar mesmo assim, force pelo painel (fica registrado)."
+                return _previa_forcar(
+                    f"⚠ {entra.nome} não cumpre as regras para entrar no lugar de {sai.nome} em "
+                    f"{fmt.tarefa_resumo(t)}:", motivos, alocacao_id=aloc.id, entra_id=entra.id,
                 )
             texto = f"Trocar {sai.nome} por {entra.nome} em {fmt.tarefa_resumo(t)}?\n✔ {fmt.candidato(av)}"
             return _previa(texto, [["trocar", f"Trocar por {entra.nome}"], ["descartar", "Descartar"]],
                            alocacao_id=aloc.id, entra_id=entra.id)
+
+        if nome == "IncluirNaTarefa":
+            t = sv.obter_tarefa(db, a.tarefa_id)
+            sv._exigir_ativa(t)
+            f = sv.obter_funcionario(db, a.funcionario_id)
+            if sv.ja_confirmado(t, f.id):
+                return _fim(f"{f.nome} já está confirmado(a) na #{t.id}.")
+            req = _vaga_para(t, f, a.papel)
+            _, av, motivos = sv.avaliar_na_vaga(db, t, req, f.id)
+            dados = {"tarefa_id": t.id, "requisito_id": req.id, "funcionario_id": f.id}
+            if motivos:
+                return _previa_forcar(f"⚠ {f.nome} não cumpre as regras para {req.papel} em {fmt.tarefa_resumo(t)}:",
+                                      motivos, **dados)
+            texto = f"Colocar {f.nome} como {req.papel} em {fmt.tarefa_resumo(t)}?\n✔ {fmt.candidato(av)}"
+            return _previa(texto, [["incluir", f"Confirmar {f.nome}"], ["descartar", "Descartar"]], **dados)
 
         if nome == "EncerrarTarefa":
             t = sv.obter_tarefa(db, a.tarefa_id)
@@ -346,7 +393,16 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
             "id": uuid.uuid4().hex[:8], "texto": p["texto"], "opcoes": p["opcoes"],
             "cancelar": p["cancelar"], "sim": p["sim"],
         })
-        return {"decisao": decisao}
+        if decisao not in p.get("pedir_motivo", []):
+            return {"decisao": decisao}
+        motivo = interrupt({
+            "id": uuid.uuid4().hex[:8], "texto_livre": True,
+            "texto": "Qual o motivo para forçar? Responda numa frase; fica registrado na auditoria.",
+            "opcoes": [[p["cancelar"], "Descartar"]], "cancelar": p["cancelar"], "sim": None,
+        })
+        if motivo == p["cancelar"] or not str(motivo).strip():
+            return {"decisao": p["cancelar"]}
+        return {"decisao": decisao, "motivo": str(motivo).strip()[:300]}
 
     # ---------- executar ----------
 
@@ -356,7 +412,7 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
             return _fim("Ok, descartado. Nada foi gravado.")
         with SessionLocal() as db:
             try:
-                return _executar(db, nome, p, d, e.get("autor") or "telegram")
+                return _executar(db, nome, p, d, e.get("autor") or "telegram", e.get("motivo"))
             except (ValueError, ValidationError, sv.ErroNegocio) as err:
                 db.rollback()
                 return _fim(f"Não deu: {_msg(err)}")
@@ -372,7 +428,17 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
             texto += f"\n⚠ Equipe incompleta. Quando houver gente, peça \"completa a tarefa {t.id}\"."
         return texto
 
-    def _executar(db, nome: str, p: dict, d: str, autor: str) -> dict:
+    def _mudou(nome_pessoa: str, motivos: list[str], mostrados: list[str]) -> dict | None:
+        """Problemas que apareceram depois da prévia: nada é gravado, nem forçando (o gestor não os viu)."""
+        if novos := [m for m in motivos if m not in mostrados]:
+            return _fim(f"Nada foi gravado: desde a prévia, {nome_pessoa} passou a ter outros problemas:\n"
+                        + "\n".join(f"• {m}" for m in novos) + "\nPeça de novo para ver a situação atual.")
+        return None
+
+    def _forcado(motivos: list[str]) -> str:
+        return "\n⚠ Forçado contra as regras; ficou registrado na auditoria com o motivo." if motivos else ""
+
+    def _executar(db, nome: str, p: dict, d: str, autor: str, motivo: str | None = None) -> dict:
         if nome == "CriarTarefa":
             t = sv.criar_tarefa(db, schemas.TarefaIn.model_validate(p["dados"]))
             sv.auditar(db, "criar_tarefa", f"#{t.id} {t.titulo} criada pelo bot", autor, t.id)
@@ -416,8 +482,24 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
         if nome == "SubstituirNaTarefa":
             aloc = sv.obter_alocacao(db, p["alocacao_id"])
             saiu = aloc.funcionario_nome
-            nova = sv.substituir(db, aloc, p["entra_id"], autor)
-            return _fim(f"Feito: {nova.funcionario_nome} entrou no lugar de {saiu} na #{aloc.tarefa_id}.")
+            entra, _, motivos = sv.avaliar_troca(db, aloc, p["entra_id"])
+            if parar := _mudou(entra.nome, motivos, p.get("violacoes", [])):
+                return parar
+            nova = sv.substituir(db, aloc, entra.id, autor, forcar=d == "forcar", motivo=motivo)
+            return _fim(f"Feito: {nova.funcionario_nome} entrou no lugar de {saiu} na #{aloc.tarefa_id}."
+                        + _forcado(motivos))
+
+        if nome == "IncluirNaTarefa":
+            t = sv.obter_tarefa(db, p["tarefa_id"])
+            req = next((r for r in t.requisitos if r.id == p["requisito_id"]), None)
+            if req is None:
+                raise sv.ErroNegocio(f"a vaga mudou desde a prévia. Peça de novo")
+            f, _, motivos = sv.avaliar_na_vaga(db, t, req, p["funcionario_id"])
+            if parar := _mudou(f.nome, motivos, p.get("violacoes", [])):
+                return parar
+            novas = sv.confirmar(db, t, [schemas.Escolha(requisito_id=req.id, funcionario_id=f.id)],
+                                 forcar=d == "forcar", motivo=motivo, autor=autor)
+            return _fim(fmt.equipe_confirmada(t, novas) + _forcado(motivos))
 
         if nome == "EncerrarTarefa":
             t = sv.encerrar_tarefa(db, sv.obter_tarefa(db, p["tarefa_id"]), p["status"], autor)
@@ -576,6 +658,9 @@ class Agente:
         with self._trava(conversa):
             avisos = []
             atual = self.pendente(conversa)
+            if atual and atual.get("texto_livre") and not audio and texto.strip():
+                valor = atual["cancelar"] if norm(texto).strip(" .!") in NAO else texto
+                return self._rodar(Command(resume=valor), conversa)
             if atual:
                 rapida = resposta_rapida(texto, atual) if not audio else None
                 if rapida is not None:

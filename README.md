@@ -125,7 +125,8 @@ Rode `python -m scripts.verificar` depois de trocar: ele mostra o provedor em us
 | "preciso de 2 técnicos com NR35 pra quarta em Betim, SPDA, urgente" | Monta a prévia da equipe e pede confirmação |
 | "o Diego está de atestado amanhã" | Mostra o que a ausência atinge, registra e sugere substitutos |
 | "tira o Igor da tarefa 1" | Até 3 substitutos com botão, só retirar ou manter |
-| "coloca o Beto no lugar da Ana na tarefa 1" | Confere as regras do Beto e pede confirmação |
+| "coloca o Beto no lugar da Ana na tarefa 1" | Confere as regras do Beto e pede confirmação; se ele viola alguma, oferece forçar |
+| "coloca o Beto na tarefa 2", "põe a Helena mesmo sem NR10" | Coloca a pessoa numa vaga aberta; se ela viola alguma regra, oferece forçar |
 | "completa a equipe da tarefa 2" | Propõe quem falta e pede confirmação |
 | "passa a tarefa 2 pra quinta", "conclui a tarefa 3" | Mostra quem deixaria de poder e pede confirmação |
 | "quem está livre sexta?", "agenda da Ana", "tarefas em andamento" | Responde direto |
@@ -135,6 +136,12 @@ Também dá para mandar **áudio**: o Gemini ouve na mesma chamada, sem serviço
 (com outros provedores, o bot pede a mensagem em texto).
 Tudo que grava pede confirmação com botão. Também vale responder "sim", "não" ou o número da opção.
 Se você mandar outro pedido enquanto um espera confirmação, o anterior é descartado.
+
+**Forçar pelo bot.** Se a pessoa pedida não cumpre alguma regra (NR faltando ou vencida, jornada, descanso,
+ausência, outra tarefa no horário...), o bot lista cada violação e oferece "Forçar mesmo assim". Ao tocar,
+ele pergunta o motivo: a próxima mensagem é o motivo ("cancela" desiste). Só então grava, com o motivo na
+alocação e na auditoria, como no painel. "Sim" digitado nunca força, e se aparecer uma violação que não
+estava na prévia, nada é gravado.
 
 **A equipe confirmada é a da prévia.** Se alguém da prévia ficou indisponível antes do clique, nada é
 confirmado: o bot explica o que mudou e mostra uma prévia nova.
@@ -228,8 +235,8 @@ Em tarefas de prioridade 4 ou 5, quem tem o perfil mas está preso numa tarefa d
 2 níveis menor aparece como **candidato a remanejamento**, com a tarefa que precisaria ser liberada.
 
 A proposta fica gravada como `proposta` até alguém confirmar. Na confirmação as regras são checadas
-de novo. É possível forçar uma escolha que viola regras; o painel pede o motivo, e isso fica na alocação
-e na auditoria.
+de novo. É possível forçar uma escolha que viola regras, pelo painel ou pelo bot; os dois pedem o motivo,
+e isso fica na alocação e na auditoria.
 
 Ao registrar uma ausência, editar ou remarcar uma tarefa, o sistema devolve quem já estava confirmado e
 deixou de cumprir as regras. Ele não cancela nada sozinho.

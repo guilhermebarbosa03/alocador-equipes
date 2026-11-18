@@ -486,29 +486,42 @@ def sugerir_substituto(db: Session, a: Alocacao) -> tuple[Avaliacao | None, Vaga
     return (opcoes[0] if opcoes else None), vaga
 
 
-def avaliar_troca(db: Session, a: Alocacao, novo_funcionario_id: int) -> tuple[Funcionario, Avaliacao, list[str]]:
-    """Como `novo` se sairia na vaga de `a` (sem gravar nada)."""
-    t, f = a.tarefa, obter_funcionario(db, novo_funcionario_id)
-    req = next((r for r in t.requisitos if r.id == a.requisito_id), None)
-    if req is None:
-        raise ErroNegocio(f"A vaga da alocação #{a.id} não existe mais", 409)
+def avaliar_na_vaga(db: Session, t: Tarefa, req: Requisito, funcionario_id: int) -> tuple[Funcionario, Avaliacao, list[str]]:
+    """Como a pessoa se sairia nesta vaga: as regras que ela viola (vazio = pode). Não grava nada."""
+    f = obter_funcionario(db, funcionario_id)
     janela = Janela.de(t)
     av, motivos = _avaliar_par(f, req, janela, carregar_compromissos(db, janela, [f.id]),
                                contrato_por_codigo(db, t.contrato))
-    if any(x.funcionario_id == f.id and x.status == "confirmada" for x in t.alocacoes):
+    return f, av, motivos
+
+
+def avaliar_troca(db: Session, a: Alocacao, novo_funcionario_id: int) -> tuple[Funcionario, Avaliacao, list[str]]:
+    """Como `novo` se sairia na vaga de `a` (sem gravar nada)."""
+    t = a.tarefa
+    req = next((r for r in t.requisitos if r.id == a.requisito_id), None)
+    if req is None:
+        raise ErroNegocio(f"A vaga da alocação #{a.id} não existe mais", 409)
+    f, av, motivos = avaliar_na_vaga(db, t, req, novo_funcionario_id)
+    if ja_confirmado(t, f.id):
         motivos.insert(0, "já está confirmado(a) nesta tarefa")
     return f, av, motivos
 
 
-def substituir(db: Session, a: Alocacao, novo_funcionario_id: int, autor: str = "sistema") -> Alocacao:
-    """Cancela `a` e confirma outra pessoa na mesma vaga (regras checadas de novo)."""
+def ja_confirmado(t: Tarefa, funcionario_id: int) -> bool:
+    return any(x.funcionario_id == funcionario_id and x.status == "confirmada" for x in t.alocacoes)
+
+
+def substituir(db: Session, a: Alocacao, novo_funcionario_id: int, autor: str = "sistema",
+               forcar: bool = False, motivo: str | None = None) -> Alocacao:
+    """Cancela `a` e confirma outra pessoa na mesma vaga (regras checadas de novo).
+    Com `forcar`, entra mesmo violando regras; as violações e o motivo vão para a auditoria."""
     if a.status != "confirmada":
         raise ErroNegocio(f"A alocação #{a.id} não está confirmada", 409)
     _exigir_ativa(a.tarefa)
     a.status = "cancelada"
     try:
         [nova] = confirmar(db, a.tarefa, [schemas.Escolha(requisito_id=a.requisito_id, funcionario_id=novo_funcionario_id)],
-                           autor=autor)
+                           forcar, motivo, autor)
     except ErroNegocio:
         db.rollback()
         raise

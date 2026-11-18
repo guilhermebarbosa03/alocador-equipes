@@ -78,6 +78,15 @@ class SubstituirNaTarefa(BaseModel):
     entra_id: int = Field(description="id de quem entra")
 
 
+class IncluirNaTarefa(BaseModel):
+    """Colocar uma pessoa ESPECÍFICA numa vaga aberta de uma tarefa que já existe ("coloca o Beto na tarefa 2").
+    Use mesmo que ela não cumpra as regras: o sistema mostra o que falta e o gestor decide se força."""
+
+    tarefa_id: int
+    funcionario_id: int
+    papel: str | None = Field(None, description="função da vaga, só se o gestor disser (\"como engenheiro\")")
+
+
 class EncerrarTarefa(BaseModel):
     """Marcar uma tarefa como concluída ou cancelada."""
 
@@ -137,12 +146,12 @@ class Responder(BaseModel):
 
 
 FERRAMENTAS = [
-    CriarTarefa, AlocarTarefa, RegistrarAusencia, TirarDaTarefa, SubstituirNaTarefa, EncerrarTarefa,
+    CriarTarefa, AlocarTarefa, IncluirNaTarefa, RegistrarAusencia, TirarDaTarefa, SubstituirNaTarefa, EncerrarTarefa,
     RemarcarTarefa, ConsultarDisponibilidade, ConsultarAgenda, VerTarefa, ListarTarefas,
     ConsultarVencimentos, ConsultarContrato, Responder,
 ]
 POR_NOME = {f.__name__: f for f in FERRAMENTAS}
-ESCRITA = {"CriarTarefa", "AlocarTarefa", "RegistrarAusencia", "TirarDaTarefa", "SubstituirNaTarefa",
+ESCRITA = {"CriarTarefa", "AlocarTarefa", "IncluirNaTarefa", "RegistrarAusencia", "TirarDaTarefa", "SubstituirNaTarefa",
            "EncerrarTarefa", "RemarcarTarefa"}
 CONSULTA = {"ConsultarDisponibilidade", "ConsultarAgenda", "VerTarefa", "ListarTarefas",
             "ConsultarVencimentos", "ConsultarContrato"}

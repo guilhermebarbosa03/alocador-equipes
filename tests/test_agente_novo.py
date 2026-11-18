@@ -113,7 +113,9 @@ def test_substituir_na_tarefa(db, llm, agente):
 
     llm.responde("SubstituirNaTarefa", tarefa_id=t.id, sai_id=ana.id, entra_id=sem_nr10.id)
     r = agente.enviar("c1", "coloca o Caio no lugar da Ana")
-    assert r.pendente is None and "NR10" in r.mensagens[0] and "painel" in r.mensagens[0]
+    assert opcoes(r) == ["forcar", "descartar"] and "NR10" in r.pendente["texto"]
+    assert "descartado" in agente.decidir("c1", r.pendente["id"], "descartar").mensagens[0]
+    assert status_alocacoes(db) == {"Ana": "confirmada"}
 
     llm.responde("SubstituirNaTarefa", tarefa_id=t.id, sai_id=ana.id, entra_id=beto.id)
     r = agente.enviar("c1", "coloca o Beto no lugar da Ana")
