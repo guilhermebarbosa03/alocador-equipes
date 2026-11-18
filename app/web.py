@@ -17,7 +17,7 @@ from jinja2 import pass_context
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from . import config, contratos, parsing, schemas, seguranca
+from . import config, contratos, parsing, provedores, schemas, seguranca
 from . import services as sv
 from .allocation import disponiveis, horas_por_dia, propor, segunda_da_semana
 from .db import get_db
@@ -676,7 +676,7 @@ def _valores_contrato(c) -> dict:
 def lista_contratos(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request, "contratos.html", _ctx(request, contratos=sv.listar_contratos(db), form={}, c=None,
-                                        ia=bool(config.GEMINI_API_KEY)),
+                                        ia=provedores.configurado()),
     )
 
 
@@ -692,7 +692,7 @@ async def criar_contrato(request: Request, db: Session = Depends(get_db)):
         return templates.TemplateResponse(
             request, "contratos.html",
             _ctx(request, contratos=sv.listar_contratos(db), form=valores, c=None, erro=_erro_validacao(e),
-                 ia=bool(config.GEMINI_API_KEY)),
+                 ia=provedores.configurado()),
             status_code=400,
         )
     return _redir(f"/contratos/{c.id}", msg=f"Contrato {c.codigo} cadastrado")
@@ -705,7 +705,7 @@ def contrato(contrato_id: int, request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request, "contratos.html",
         _ctx(request, contratos=sv.listar_contratos(db), form=_valores_contrato(c), c=c, tarefas=tarefas,
-             ia=bool(config.GEMINI_API_KEY)),
+             ia=provedores.configurado()),
     )
 
 
@@ -723,16 +723,14 @@ async def salvar_contrato(contrato_id: int, request: Request, db: Session = Depe
 
 @router.post("/contratos/{contrato_id}/extrair")
 def extrair_contrato(contrato_id: int, db: Session = Depends(get_db)):
-    """Lê o texto com o Gemini e soma as exigências encontradas às que já estão cadastradas."""
+    """Lê o texto com o modelo de IA e soma as exigências encontradas às que já estão cadastradas."""
     c = sv.obter_contrato(db, contrato_id)
     if not c.texto:
         return _redir(f"/contratos/{c.id}", erro="Cole o texto do contrato antes de extrair as exigências.")
     try:
         regras = contratos.extrair_regras(c.texto)
     except Exception as e:  # sem chave, cota, rede...
-        from .agente.grafo import _erro_modelo
-
-        return _redir(f"/contratos/{c.id}", erro=str(e) if isinstance(e, RuntimeError) else _erro_modelo(e))
+        return _redir(f"/contratos/{c.id}", erro=str(e) if isinstance(e, RuntimeError) else provedores.explicar_erro(e))
     dados = schemas.ContratoIn(
         codigo=c.codigo, cliente=c.cliente or regras.cliente,
         certificacoes=list(c.certificacoes or []) + regras.certificacoes,

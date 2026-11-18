@@ -2,7 +2,7 @@
 
 A busca é por palavras (BM25 simplificado), sem embeddings: roda em SQLite ou Postgres, sem modelo
 local e sem chamar a API. Serve para o agente responder "o que o contrato X diz sobre EPI?" citando
-o trecho. A extração usa o Gemini uma vez, no cadastro, e o gestor revisa antes de salvar.
+o trecho. A extração usa o modelo de IA (LLM_PROVIDER) uma vez, no cadastro, e o gestor revisa antes de salvar.
 """
 
 from __future__ import annotations
@@ -90,17 +90,11 @@ class RegrasContrato(BaseModel):
 
 
 def extrair_regras(texto: str, modelo=None) -> RegrasContrato:
-    """Lê o contrato com o Gemini e devolve as exigências estruturadas. `modelo` permite testar sem a API."""
+    """Lê o contrato com o modelo de IA e devolve as exigências estruturadas. `modelo` permite testar sem a API."""
     if modelo is None:
-        from . import config
+        from . import provedores
 
-        if not config.GEMINI_API_KEY:
-            raise RuntimeError("Defina GEMINI_API_KEY no .env para extrair as regras automaticamente.")
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        modelo = ChatGoogleGenerativeAI(
-            model=config.GEMINI_MODEL, api_key=config.GEMINI_API_KEY, max_retries=2, timeout=90
-        ).with_structured_output(RegrasContrato)
+        modelo = provedores.criar_modelo(timeout=90).with_structured_output(RegrasContrato)
     prompt = (
         "Extraia do contrato abaixo SOMENTE exigências obrigatórias para a equipe que executa o serviço. "
         "Não invente: se o texto não disser, deixe vazio.\n\n" + texto[:60000]

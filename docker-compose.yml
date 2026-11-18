@@ -5,6 +5,21 @@ x-app-env: &app-env
   # assina sessões, avisos de tela e links de calendário: defina no .env para não mudar a cada deploy
   SECRET_KEY: ${SECRET_KEY:-}
 
+# Modelo de IA: o .env escolhe o provedor (LLM_PROVIDER) e guarda as chaves; aqui só repassa.
+# Vazio = padrão do app (veja .env.example).
+x-ia-env: &ia-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+  # Ollama rodando no computador, fora do Docker (veja extra_hosts nos serviços)
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+
 services:
   db:
     # Postgres com pgvector: o mesmo banco pode guardar embeddings de contratos no futuro
@@ -25,11 +40,11 @@ services:
   app:
     build: .
     environment:
-      <<: *app-env
+      <<: [*app-env, *ia-env]  # IA no painel: só para extrair exigências de contratos
       PAINEL_SENHA: ${PAINEL_SENHA:-}
       API_TOKEN: ${API_TOKEN:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}  # só para extrair exigências de contratos no painel
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     depends_on:
@@ -49,9 +64,7 @@ services:
     build: .
     command: ["python", "-m", "app.bot"]
     environment:
-      <<: *app-env
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      <<: [*app-env, *ia-env]
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_USUARIOS_PERMITIDOS: ${TELEGRAM_USUARIOS_PERMITIDOS:-}
       AVISOS_EQUIPE: ${AVISOS_EQUIPE:-1}
@@ -59,6 +72,8 @@ services:
       AGENTE_DB: /dados/agente.db
     volumes:
       - agente:/dados
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

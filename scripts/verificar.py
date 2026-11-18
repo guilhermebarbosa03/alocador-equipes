@@ -1,4 +1,4 @@
-"""Confere o .env: chave do Gemini, modelo, uma chamada de teste e o token do Telegram.
+"""Confere o .env: provedor de IA, chave, modelo, uma chamada de teste e o token do Telegram.
 
 Uso:  python -m scripts.verificar
 Não mostra nenhum segredo, só se cada item funciona.
@@ -9,48 +9,62 @@ import sys
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app import config
-from app.agente.grafo import _erro_modelo
+from app import config, provedores
+from app.provedores import explicar_erro
+
+
+def _conferir_gemini(p: provedores.Provedor) -> bool:
+    """Só o Gemini lista os modelos da conta: ajuda a achar um nome válido para GEMINI_MODEL."""
+    from google import genai
+
+    try:
+        cliente = genai.Client(api_key=p.chave)  # precisa ficar vivo enquanto a lista é lida
+        nomes = {m.name.removeprefix("models/") for m in cliente.models.list()}
+    except Exception as e:
+        print(f"✗ chave recusada: {explicar_erro(e)}")
+        print(f"  detalhe: {type(e).__name__}: {str(e)[:250]}")
+        return False
+    if p.modelo in nomes:
+        print("✓ chave aceita e modelo disponível")
+        return True
+    leves = sorted(n for n in nomes if "flash-lite" in n or n.startswith("gemma"))
+    print(f"✗ modelo não encontrado. Opções leves nesta conta: {', '.join(leves)}")
+    return False
+
+
+def _conferir_ia() -> bool:
+    try:
+        p = provedores.atual()
+    except RuntimeError as e:
+        print(f"✗ {e}")
+        return False
+    print(f"Modelo de IA: {p.rotulo} · {p.modelo} (LLM_PROVIDER={config.LLM_PROVIDER})")
+    if not p.configurado:
+        print(f"✗ {p.var_chave} vazia. Crie uma chave em {p.onde_criar_chave}")
+        return False
+    if p.rotulo == "Gemini" and not _conferir_gemini(p):
+        return False
+
+    from app.agente.llm import criar_interpretador
+
+    try:
+        nome, args = criar_interpretador()([
+            SystemMessage("Hoje: segunda, 2026-11-16. Funções cadastradas: tecnico."),
+            HumanMessage("quem está livre amanhã?"),
+        ])
+    except Exception as e:
+        print(f"✗ chamada de teste falhou: {str(e) if isinstance(e, RuntimeError) else explicar_erro(e)}")
+        print(f"  detalhe: {type(e).__name__}: {str(e)[:250]}")
+        return False
+    print(f"✓ chamada de teste: {nome} {args}")
+    if not p.aceita_audio:
+        print(f"  aviso: o {p.rotulo} não ouve áudio; o bot vai pedir que mandem texto no lugar de mensagens de voz")
+    return True
 
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
-    ok = True
-
-    print(f"Modelo configurado: {config.GEMINI_MODEL}")
-    if not config.GEMINI_API_KEY:
-        print("✗ GEMINI_API_KEY vazia")
-        ok = False
-    else:
-        from google import genai
-
-        try:
-            cliente = genai.Client(api_key=config.GEMINI_API_KEY)  # precisa ficar vivo enquanto a lista é lida
-            nomes = {m.name.removeprefix("models/") for m in cliente.models.list()}
-            if config.GEMINI_MODEL in nomes:
-                print("✓ chave aceita e modelo disponível")
-            else:
-                ok = False
-                leves = sorted(n for n in nomes if "flash-lite" in n or n.startswith("gemma"))
-                print(f"✗ modelo não encontrado. Opções leves nesta conta: {', '.join(leves)}")
-        except Exception as e:
-            ok = False
-            print(f"✗ chave recusada: {_erro_modelo(e)}")
-            print(f"  detalhe: {type(e).__name__}: {str(e)[:250]}")
-
-        if ok:
-            from app.agente.llm import criar_interpretador
-
-            try:
-                nome, args = criar_interpretador()([
-                    SystemMessage("Hoje: segunda, 2026-11-16. Funções cadastradas: tecnico."),
-                    HumanMessage("quem está livre amanhã?"),
-                ])
-                print(f"✓ chamada de teste: {nome} {args}")
-            except Exception as e:
-                ok = False
-                print(f"✗ chamada de teste falhou: {_erro_modelo(e)}")
-                print(f"  detalhe: {str(e)[:250]}")
+    ok = _conferir_ia()
 
     if not config.TELEGRAM_BOT_TOKEN:
         print("✗ TELEGRAM_BOT_TOKEN vazio")

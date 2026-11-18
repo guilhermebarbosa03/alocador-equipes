@@ -48,13 +48,13 @@
   {% if c %}
   <div class="actions">
     <form class="inline" method="post" action="/contratos/{{ c.id }}/extrair">
-      {{ csrf() }}<button class="sec" type="submit" {% if not ia or not c.texto %}disabled title="{{ 'Defina GEMINI_API_KEY' if not ia else 'Cole e salve o texto antes' }}"{% endif %}>Extrair exigências do texto com IA</button>
+      {{ csrf() }}<button class="sec" type="submit" {% if not ia or not c.texto %}disabled title="{{ 'Configure o modelo de IA no .env (LLM_PROVIDER e a chave dele)' if not ia else 'Cole e salve o texto antes' }}"{% endif %}>Extrair exigências do texto com IA</button>
     </form>
     <form class="inline" method="post" action="/contratos/{{ c.id }}/remover" onsubmit="return confirm('Remover o contrato? As tarefas com este código deixam de ter as regras extras.')">
       {{ csrf() }}<button class="danger" type="submit">Remover</button>
     </form>
   </div>
-  <p class="muted small">A extração lê o texto com o Gemini uma vez e soma o que encontrar às exigências acima. Revise antes de usar.</p>
+  <p class="muted small">A extração lê o texto com o modelo de IA uma vez e soma o que encontrar às exigências acima. Revise antes de usar.</p>
   {% endif %}
 </div>
 

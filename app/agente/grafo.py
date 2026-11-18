@@ -29,6 +29,7 @@ from langgraph.types import Command, interrupt
 from pydantic import ValidationError
 
 from .. import config, parsing, schemas
+from ..provedores import explicar_erro
 from .. import services as sv
 from ..allocation import contrato_por_codigo, disponiveis, norm, propor
 from ..contratos import buscar_clausulas
@@ -76,22 +77,6 @@ def _msg(err: Exception) -> str:
     return str(err)
 
 
-def _erro_modelo(err: Exception) -> str:
-    texto = str(err)
-    if "402" in texto or "prepayment" in texto.lower():
-        return (
-            "A chave do Gemini é de um projeto com faturamento pré-pago e sem créditos. "
-            "Crie uma chave num projeto SEM faturamento (plano gratuito) no AI Studio e troque GEMINI_API_KEY no .env."
-        )
-    if any(k in texto for k in ("429", "RESOURCE_EXHAUSTED", "quota")):
-        return "Atingi o limite gratuito do Gemini. Tente de novo em alguns minutos (ou use o painel)."
-    if any(k in texto for k in ("API_KEY_INVALID", "API key not valid", "PERMISSION_DENIED", "401", "403")):
-        return "A chave do Gemini foi recusada. Confira GEMINI_API_KEY no .env."
-    if "404" in texto or "not found" in texto.lower():
-        return f"O modelo '{config.GEMINI_MODEL}' não foi encontrado. Ajuste GEMINI_MODEL no .env."
-    return "Não consegui falar com o modelo de IA agora. Tente de novo em instantes."
-
-
 def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Callable[[], datetime] = agora_local):
     def rota_inicio(e: Estado) -> str:
         return "substituir" if e.get("entrada") == "substituir" and e.get("pendencias") else "interpretar"
@@ -110,7 +95,7 @@ def construir_grafo(interpretador: Interpretador, checkpointer=None, agora: Call
             nome, args = interpretador(mensagens_para_modelo(contexto, e["messages"], e.get("audio")))
         except Exception as err:  # rede, cota, chave inválida...
             log.exception("Falha ao chamar o modelo")
-            return {**reset, "messages": limpeza, **_saida(_erro_modelo(err), no_historico=False)}
+            return {**reset, "messages": limpeza, **_saida(explicar_erro(err), no_historico=False)}
 
         saida: dict[str, Any] = {}
         if nome == "Responder" or nome not in POR_NOME:

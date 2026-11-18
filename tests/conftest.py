@@ -6,6 +6,7 @@ os.environ["SECRET_KEY"] = "chave-de-teste"
 os.environ["PAINEL_SENHA"] = ""
 os.environ["API_TOKEN"] = ""
 os.environ["APP_TIMEZONE"] = "America/Sao_Paulo"
+os.environ["LLM_PROVIDER"] = "gemini"  # mensagens de erro e voz não dependem do provedor do .env local
 
 from datetime import datetime, timedelta  # noqa: E402
 

@@ -1,4 +1,4 @@
-"""Intenções que o modelo pode escolher. Cada classe vira uma "ferramenta" para o Gemini.
+"""Intenções que o modelo pode escolher. Cada classe vira uma "ferramenta" para o modelo.
 
 O modelo só escolhe a intenção e preenche os campos; quem executa é código determinístico.
 Campos são simples (texto, número) porque modelos pequenos erram menos assim.

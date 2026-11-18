@@ -3,7 +3,7 @@
 Cadastro de funcionários, disponibilidade e alocação de pessoas em tarefas e idas a campo.
 
 - **Fase 1:** cadastros, API, painel web e motor de alocação. Não usa LLM.
-- **Fase 2:** agente LangGraph + Gemini e bot do Telegram. Usam os mesmos serviços do painel.
+- **Fase 2:** agente LangGraph + modelo de IA (Gemini por padrão; Claude, OpenAI ou Ollama) e bot do Telegram. Usam os mesmos serviços do painel.
 - **Fase 3 (parcial):** contratos com exigências que o motor aplica sozinho e consulta de cláusulas pelo bot.
 - **Fase 4:** avisos para a equipe pelo Telegram, modo equipe no bot e resumo semanal de certificações.
 
@@ -66,14 +66,14 @@ Os avisos de tela ("Proposta gerada") vão num cookie assinado de vida curta, n�
 1. Copie `.env.example` para `.env`.
 2. Crie uma chave do Gemini em https://aistudio.google.com/apikey num projeto **sem faturamento**.
    Projeto com faturamento sai do plano gratuito; no modo pré-pago sem saldo, toda chamada dá erro 402.
-   Cole a chave em `GEMINI_API_KEY`.
+   Cole a chave em `GEMINI_API_KEY`. Prefere outro provedor? Veja [Trocar o modelo de IA](#trocar-o-modelo-de-ia).
 3. No Telegram, fale com o **@BotFather** e mande `/newbot`. Cole o token em `TELEGRAM_BOT_TOKEN`.
 4. Em `TELEGRAM_USUARIOS_PERMITIDOS`, coloque os **gestores**, separados por vírgula.
    O recomendado é o ID numérico: mande `/id` ao bot para descobrir o seu. `@usuario` também funciona,
    mas pode ser trocado e reaproveitado por outra pessoa, e avisos só chegam a IDs numéricos.
 5. Para a **equipe** usar o bot, coloque o ID do Telegram de cada pessoa no cadastro dela (a pessoa manda
    `/id` ao bot). Ela precisa mandar `/start` uma vez para o bot poder escrever para ela.
-6. Confira tudo de uma vez. O comando faz uma chamada de teste ao Gemini e não mostra segredos:
+6. Confira tudo de uma vez. O comando faz uma chamada de teste ao modelo de IA e não mostra segredos:
 
 ```bash
 .venv\Scripts\python -m scripts.verificar
@@ -95,6 +95,29 @@ Bot do Telegram:
 
 Com Docker, o `docker compose up -d` já sobe o bot junto, lendo o `.env`.
 
+### Trocar o modelo de IA
+
+O provedor é escolhido em `LLM_PROVIDER` no `.env`. Cada um tem a própria chave e o próprio modelo,
+então dá para deixar várias chaves preenchidas e trocar só essa linha (depois, reinicie o bot e o painel).
+
+| `LLM_PROVIDER` | Chave | Modelo (padrão) | Voz no Telegram |
+|---|---|---|---|
+| `gemini` (padrão) | `GEMINI_API_KEY` | `GEMINI_MODEL` (`gemini-3.5-flash-lite`) | sim |
+| `anthropic` (ou `claude`) | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` (`claude-haiku-5-5`) | não |
+| `openai` | `OPENAI_API_KEY` | `OPENAI_MODEL` (`gpt-5-mini`) | não |
+| `ollama` (local, grátis) | — | `OLLAMA_MODEL` (`qwen3`) | não |
+
+- **Voz:** só o Gemini ouve áudio na mesma chamada. Com os outros, o bot responde pedindo a mensagem em texto.
+- **APIs compatíveis com a da OpenAI** (OpenRouter, Groq, DeepSeek, LM Studio...): use `LLM_PROVIDER=openai`,
+  a URL em `OPENAI_BASE_URL`, a chave do serviço em `OPENAI_API_KEY` e o nome do modelo em `OPENAI_MODEL`.
+- **Ollama:** instale em https://ollama.com e baixe o modelo antes (`ollama pull qwen3`). No Docker, o
+  padrão já aponta para o Ollama do computador (`host.docker.internal:11434`).
+- **Outro provedor do LangChain** (Mistral, Bedrock...): instale a integração e acrescente uma entrada em
+  `PROVEDORES`, em `app/provedores.py`. O resto do app não muda: todos seguem a mesma interface de chat
+  model do LangChain (`bind_tools`, `with_structured_output`).
+
+Rode `python -m scripts.verificar` depois de trocar: ele mostra o provedor em uso e faz uma chamada de teste.
+
 ### O que o gestor pode pedir
 
 | Mensagem | O que acontece |
@@ -108,7 +131,8 @@ Com Docker, o `docker compose up -d` já sobe o bot junto, lendo o `.env`.
 | "quem está livre sexta?", "agenda da Ana", "tarefas em andamento" | Responde direto |
 | "quais NRs vencem este mês?", "o que o CT-2026-014 diz sobre multa?" | Responde direto, citando o trecho do contrato |
 
-Também dá para mandar **áudio**: o Gemini ouve na mesma chamada, sem serviço de transcrição à parte.
+Também dá para mandar **áudio**: o Gemini ouve na mesma chamada, sem serviço de transcrição à parte
+(com outros provedores, o bot pede a mensagem em texto).
 Tudo que grava pede confirmação com botão. Também vale responder "sim", "não" ou o número da opção.
 Se você mandar outro pedido enquanto um espera confirmação, o anterior é descartado.
 
@@ -142,7 +166,7 @@ início ─┬─> interpretar ─┬─> consultar ─────────�
         └─> substituir (imprevisto avisado pela equipe)
 ```
 
-- **Uma chamada ao Gemini por mensagem.** Só o passo "interpretar" usa o modelo. Ele escolhe uma intenção
+- **Uma chamada ao modelo por mensagem.** Só o passo "interpretar" usa o modelo. Ele escolhe uma intenção
   (criar tarefa, registrar ausência, consultar...) e preenche os campos.
 - **Decisões em código.** Prévias, horários padrão (08h–17h, ou dia inteiro para ausências), escolha das
   pessoas e textos de resposta não gastam cota e não inventam dados.
@@ -152,8 +176,8 @@ início ─┬─> interpretar ─┬─> consultar ─────────�
 - **Contexto do modelo.** Recebe a data de hoje, a lista de funcionários (nome, função, especialidades,
   certificações **com validade**, marcando as vencidas), os contratos e as tarefas em andamento, das mais
   próximas para as mais distantes. **Não** recebe e-mail, ID do Telegram nem o texto livre de experiências.
-- **Privacidade.** Os nomes dos funcionários (e os áudios) vão para o Google. No plano gratuito do Gemini,
-  o Google pode usar o que é enviado para melhorar os modelos.
+- **Privacidade.** Os nomes dos funcionários (e os áudios) vão para o provedor escolhido. No plano gratuito
+  do Gemini, o Google pode usar o que é enviado para melhorar os modelos. Com o Ollama, nada sai do computador.
 
 ## Painel
 
@@ -230,7 +254,7 @@ contrato exige técnico de segurança e a tarefa não tem essa vaga, o painel e 
 
 O texto das cláusulas fica no cadastro. O bot responde perguntas citando os trechos mais ligados à
 pergunta (busca por palavras, sem embeddings: funciona em SQLite e Postgres, sem modelo local). No painel,
-"Extrair exigências do texto com IA" lê o contrato com o Gemini uma vez e soma o que encontrar; revise antes.
+"Extrair exigências do texto com IA" lê o contrato com o modelo de IA uma vez e soma o que encontrar; revise antes.
 
 ## Estrutura
 
@@ -242,7 +266,8 @@ pergunta (busca por palavras, sem embeddings: funciona em SQLite e Postgres, sem
 | `app/agente/grafo.py` | Grafo LangGraph, aprovações e a classe `Agente` |
 | `app/agente/equipe.py` | Modo equipe do bot (o próprio funcionário) |
 | `app/agente/intencoes.py` | Intenções que o modelo pode escolher |
-| `app/agente/llm.py` | Prompt, contexto e chamada ao Gemini |
+| `app/agente/llm.py` | Prompt, contexto e chamada ao modelo |
+| `app/provedores.py` | Escolha do modelo de IA (Gemini, Claude, OpenAI, Ollama) e mensagens de erro |
 | `app/agente/formatar.py` | Textos das respostas |
 | `app/bot.py` | Bot do Telegram, avisos e resumo semanal |
 | `app/api.py` | API REST em `/api` |

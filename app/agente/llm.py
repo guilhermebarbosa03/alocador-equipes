@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import config
+from .. import provedores
 from .. import services as sv
 from ..models import Funcionario
 from .intencoes import FERRAMENTAS
@@ -143,12 +143,17 @@ def funcionario_por_telegram(db: Session, telegram_id: int | str) -> int | None:
 
 
 def historico(mensagens: list[BaseMessage], n: int = 8) -> list[BaseMessage]:
-    """Só texto de usuário e do assistente, últimas n mensagens."""
-    return [m for m in mensagens if isinstance(m, (HumanMessage, AIMessage)) and m.content][-n:]
+    """Só texto de usuário e do assistente, últimas n mensagens, começando por uma do usuário
+    (alguns provedores recusam conversa que começa pelo assistente)."""
+    recentes = [m for m in mensagens if isinstance(m, (HumanMessage, AIMessage)) and m.content][-n:]
+    while recentes and not isinstance(recentes[0], HumanMessage):
+        recentes.pop(0)
+    return recentes
 
 
 def com_audio(mensagens: list[BaseMessage], audio: dict | None) -> list[BaseMessage]:
-    """Troca a última mensagem do usuário pelo áudio (o Gemini entende áudio na mesma chamada)."""
+    """Troca a última mensagem do usuário pelo áudio. Só chega aqui com provedor que ouve áudio (Gemini):
+    o bot recusa a mensagem de voz antes, se o modelo escolhido não aceitar."""
     if not audio:
         return mensagens
     for i in range(len(mensagens) - 1, -1, -1):
@@ -162,20 +167,8 @@ def com_audio(mensagens: list[BaseMessage], audio: dict | None) -> list[BaseMess
 
 
 def criar_interpretador(ferramentas: list = FERRAMENTAS) -> Interpretador:
-    if not config.GEMINI_API_KEY:
-        raise RuntimeError(
-            "Defina GEMINI_API_KEY no arquivo .env. Crie uma chave gratuita em https://aistudio.google.com/apikey"
-        )
-    import logging
-
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    # o conversor avisa "Key '$defs' is not supported" mesmo resolvendo as referências corretamente
-    logging.getLogger("langchain_google_genai").setLevel(logging.ERROR)
-
-    llm = ChatGoogleGenerativeAI(
-        model=config.GEMINI_MODEL, api_key=config.GEMINI_API_KEY, max_retries=2, timeout=60
-    )
+    """Liga o modelo escolhido em LLM_PROVIDER às intenções. tool_choice="any": sempre uma ferramenta."""
+    llm = provedores.criar_modelo(timeout=60)
     com_ferramentas = llm.bind_tools(ferramentas, tool_choice="any")
     resposta_texto = ferramentas[-1].__name__  # a última ferramenta é sempre a de responder em texto
 

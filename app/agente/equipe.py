@@ -20,7 +20,8 @@ from ..db import SessionLocal
 from ..models import Funcionario, Tarefa
 from ..relogio import agora as agora_local
 from . import formatar as fmt
-from .grafo import _erro_modelo, _msg
+from ..provedores import explicar_erro
+from .grafo import _msg
 from .intencoes import POR_NOME_EQUIPE, InformarAusencia, MinhaAgenda, MinhaTarefa, _data, resolver_periodo
 from .llm import Interpretador, com_audio, montar_contexto_equipe
 
@@ -49,7 +50,7 @@ class AssistenteEquipe:
             nome, args = self.interpretador(com_audio([SystemMessage(contexto), HumanMessage(texto)], audio))
         except Exception as err:
             log.exception("Falha ao chamar o modelo (modo equipe)")
-            return RespostaEquipe([_erro_modelo(err)])
+            return RespostaEquipe([explicar_erro(err)])
 
         classe = POR_NOME_EQUIPE.get(nome)
         if classe is None or nome == "ResponderEquipe":

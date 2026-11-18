@@ -1,7 +1,8 @@
 """Bot do Telegram. Roda por long polling: não precisa de domínio, IP público nem porta aberta.
 
 Uso:  python -m app.bot
-Precisa de TELEGRAM_BOT_TOKEN, GEMINI_API_KEY e TELEGRAM_USUARIOS_PERMITIDOS no .env.
+Precisa de TELEGRAM_BOT_TOKEN, da chave do modelo de IA (LLM_PROVIDER; padrão Gemini, GEMINI_API_KEY)
+e de TELEGRAM_USUARIOS_PERMITIDOS no .env.
 
 Dois públicos:
 - Gestores (TELEGRAM_USUARIOS_PERMITIDOS): o agente completo, com aprovação por botão.
@@ -23,7 +24,7 @@ from telegram.constants import ChatAction, ChatType
 from telegram.error import NetworkError, TelegramError
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-from . import config
+from . import config, provedores
 from . import services as sv
 from .agente import formatar as fmt
 from .agente.equipe import AssistenteEquipe
@@ -166,6 +167,11 @@ async def _audio(update: Update) -> dict | None:
         return None
     if voz.duration and voz.duration > MAX_AUDIO_SEGUNDOS:
         await update.message.reply_text(f"Mande áudios de até {MAX_AUDIO_SEGUNDOS // 60} minutos, por favor.")
+        return {}
+    if not provedores.aceita_audio():
+        await update.message.reply_text(
+            f"O modelo de IA configurado ({provedores.atual().rotulo}) não ouve áudio. Mande por texto, por favor."
+        )
         return {}
     arquivo = await voz.get_file()
     dados = await arquivo.download_as_bytearray()
@@ -488,7 +494,7 @@ def main() -> None:
     app.add_handler(MessageHandler((filters.TEXT & ~filters.COMMAND) | filters.VOICE, ao_receber_mensagem))
     app.add_handler(CallbackQueryHandler(ao_apertar_botao))
     app.add_error_handler(ao_errar)
-    log.info("Bot no ar (modelo: %s). Ctrl+C para parar.", config.GEMINI_MODEL)
+    log.info("Bot no ar (modelo: %s). Ctrl+C para parar.", provedores.descricao())
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
