@@ -1,6 +1,11 @@
 import os
 
-os.environ["DATABASE_URL"] = "sqlite://"  # banco em memória, antes de importar o app
+# antes de importar o app: banco em memória e nada vindo do .env local que mude o comportamento
+os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["SECRET_KEY"] = "chave-de-teste"
+os.environ["PAINEL_SENHA"] = ""
+os.environ["API_TOKEN"] = ""
+os.environ["APP_TIMEZONE"] = "America/Sao_Paulo"
 
 from datetime import datetime, timedelta  # noqa: E402
 
@@ -16,8 +21,8 @@ from app.main import app  # noqa: E402
 SEG = datetime(2026, 11, 16)  # uma segunda-feira
 
 
-def em(dias: int, hora: int) -> datetime:
-    return SEG + timedelta(days=dias, hours=hora)
+def em(dias: int, hora: int, minuto: int = 0) -> datetime:
+    return SEG + timedelta(days=dias, hours=hora, minutes=minuto)
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +30,14 @@ def _banco_limpo():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _agora_fixo(monkeypatch):
+    """O "agora" dos serviços fica no domingo antes da semana dos testes (avisos não expiram)."""
+    fixo = lambda: datetime(2026, 11, 15, 10, 0)  # noqa: E731
+    monkeypatch.setattr(sv, "agora", fixo)
+    monkeypatch.setattr(sv, "hoje", lambda: fixo().date())
 
 
 @pytest.fixture
@@ -38,6 +51,14 @@ def db():
 def client():
     with TestClient(app) as c:
         yield c
+
+
+def csrf(client) -> str:
+    """Token do formulário: o painel põe no cookie `csrf` na primeira visita."""
+    if not client.cookies.get("csrf"):
+        client.get("/saude")
+        client.get("/login")
+    return client.cookies.get("csrf")
 
 
 def novo_func(db, nome, papel="tecnico", esp=(("Elétrica", 4),), cert=(("NR10", None),), **kw):

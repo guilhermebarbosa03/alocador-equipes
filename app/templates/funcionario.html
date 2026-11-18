@@ -15,14 +15,20 @@
         {% else %}
           <strong>Ausência:</strong> {{ e.titulo }}
         {% endif %}
-        <div class="muted small">{{ e.inicio|dt }} → {{ e.fim|dt }}</div>
+        <div class="muted small">{{ e.inicio|dt }} → {{ e.fim|dt }}{% if e.local %} · {{ e.local }}{% endif %}</div>
       </div>
     {% else %}<p class="muted">Nada agendado.</p>{% endfor %}
+    <details>
+      <summary>Assinar esta agenda no celular (Google Agenda, Outlook…)</summary>
+      <p class="small">Copie o link e adicione como "agenda por URL". Ele atualiza sozinho e não pede login; não compartilhe com quem não deve ver.</p>
+      <input readonly value="{{ link_ics }}" onclick="this.select()">
+    </details>
   </div>
 
   <div class="card">
     <h2>Registrar ausência</h2>
     <form method="post" action="/funcionarios/{{ f.id }}/indisponibilidades">
+      {{ csrf() }}
       <div class="row">
         <label>Início <input type="datetime-local" name="inicio" required></label>
         <label>Fim <input type="datetime-local" name="fim" required></label>
@@ -36,7 +42,7 @@
     {% for i in indisponibilidades %}
       <div class="small">{{ i.motivo }} · {{ i.inicio|dt }} → {{ i.fim|dt }}
         <form class="inline" method="post" action="/indisponibilidades/{{ i.id }}/remover">
-          <button class="mini danger" type="submit">remover</button>
+          {{ csrf() }}<button class="mini danger" type="submit">remover</button>
         </form>
       </div>
     {% endfor %}
@@ -51,8 +57,11 @@
     {% include "_form_funcionario.html" %}
     <div class="actions"><button type="submit">Salvar</button></div>
   </form>
-  <form method="post" action="/funcionarios/{{ f.id }}/ativo" class="actions">
+  <form method="post" action="/funcionarios/{{ f.id }}/ativo" class="actions"
+        {% if f.ativo and futuras %}onsubmit='return confirm({{ (f.nome ~ " ainda está confirmado(a) em " ~ futuras|length ~ " tarefa(s) futura(s). Desativar mesmo assim? As alocações continuam até alguém substituir.")|tojson }})'{% endif %}>
+    {{ csrf() }}
     <button class="{{ 'danger' if f.ativo else 'sec' }}" type="submit">{{ 'Desativar' if f.ativo else 'Reativar' }}</button>
+    {% if f.ativo and futuras %}<span class="muted small">Confirmado(a) em: {% for a in futuras %}<a href="/tarefas/{{ a.tarefa_id }}">#{{ a.tarefa_id }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
   </form>
 </div>
 {% endblock %}

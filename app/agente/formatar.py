@@ -2,31 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
-
 from ..allocation import Avaliacao, Proposta, Vaga
 from ..models import Alocacao, Tarefa
-
-DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
-
-
-def quando(inicio: datetime, fim: datetime) -> str:
-    def dia(d: datetime) -> str:
-        return f"{DIAS[d.weekday()]} {d:%d/%m}"
-
-    if inicio.date() == fim.date():
-        return f"{dia(inicio)}, {inicio:%H:%M}–{fim:%H:%M}"
-    if inicio.time() == fim.time() == time.min:  # dias inteiros (ausências)
-        ultimo = fim - timedelta(days=1)
-        if ultimo.date() == inicio.date():
-            return f"{dia(inicio)} (dia inteiro)"
-        return f"{dia(inicio)} a {dia(ultimo)} (dias inteiros)"
-    return f"{dia(inicio)} {inicio:%H:%M} → {dia(fim)} {fim:%H:%M}"
+from ..texto import quando  # noqa: F401  (grafo.py e bot.py usam fmt.quando)
 
 
 def exigencias(r) -> str:
     partes = [f"{e['nome']}≥{e.get('nivel_min', 1)}" for e in (r.especialidades or [])]
     partes += list(r.certificacoes or [])
+    if r.anos_experiencia_min:
+        partes.append(f"≥{r.anos_experiencia_min:g} anos")
     if r.desejaveis:
         partes.append("desejável: " + ", ".join(r.desejaveis))
     return f" ({', '.join(partes)})" if partes else ""
@@ -38,7 +23,11 @@ def candidato(a: Avaliacao) -> str:
 
 def rejeitado(a: Avaliacao) -> str:
     """Quem tem o perfil mas está ocupado aparece marcado: é a informação mais útil para o gestor."""
-    return f"{a.funcionario.nome}{' (tem o perfil)' if a.perfil_ok else ''}: {a.motivos[0]}"
+    marca = " (tem o perfil)" if a.perfil_ok else ""
+    if a.remanejar_de:
+        tarefas = ", ".join(f"#{i}" for i in a.remanejar_de)
+        marca = f" (remanejável: liberando {tarefas}, de prioridade menor)"
+    return f"{a.funcionario.nome}{marca}: {a.motivos[0]}"
 
 
 def vaga(v: Vaga, mostrar_alternativas: bool = True) -> str:
@@ -62,7 +51,14 @@ def vaga(v: Vaga, mostrar_alternativas: bool = True) -> str:
 
 
 def proposta(p: Proposta) -> str:
-    return "\n".join(vaga(v) for v in p.vagas)
+    linhas = [vaga(v) for v in p.vagas]
+    c = p.contrato
+    if c is not None and (c.certificacoes or c.anos_experiencia_min):
+        regras = list(c.certificacoes or [])
+        if c.anos_experiencia_min:
+            regras.append(f"≥{c.anos_experiencia_min:g} anos")
+        linhas.append(f"Contrato {c.codigo} exige de todos: {', '.join(regras)}")
+    return "\n".join(linhas)
 
 
 def tarefa_resumo(t: Tarefa) -> str:
@@ -71,7 +67,9 @@ def tarefa_resumo(t: Tarefa) -> str:
 
 
 def tarefa_detalhe(t: Tarefa) -> str:
-    linhas = [tarefa_resumo(t), f"Status: {t.status}"]
+    linhas = [tarefa_resumo(t), f"Status: {t.status} · prioridade {t.prioridade}"]
+    if t.contrato:
+        linhas.append(f"Contrato: {t.contrato}")
     for r in t.requisitos:
         aloc = [a for a in t.alocacoes if a.requisito_id == r.id and a.status in ("confirmada", "proposta")]
         nomes = ", ".join(f"{a.funcionario_nome}{'' if a.status == 'confirmada' else ' (proposto)'}" for a in aloc)
@@ -89,8 +87,20 @@ def ajuda() -> str:
         "Posso:\n"
         "• criar serviço e montar equipe: \"preciso de 2 técnicos com NR35 pra quarta em Betim\"\n"
         "• registrar ausência: \"Diego está de atestado amanhã\"\n"
-        "• tirar alguém de um serviço: \"tira o Igor da tarefa 1\"\n"
+        "• tirar ou trocar alguém: \"tira o Igor da tarefa 1\", \"coloca o Beto no lugar da Ana na 1\"\n"
         "• completar equipe: \"aloca gente na tarefa 2\"\n"
-        "• consultar: \"quem está livre sexta?\", \"agenda da Ana\", \"tarefas em andamento\"\n"
-        "Tudo que grava pede sua confirmação antes."
+        "• remarcar, concluir ou cancelar: \"passa a tarefa 2 pra quinta\", \"conclui a tarefa 3\"\n"
+        "• consultar: \"quem está livre sexta?\", \"agenda da Ana\", \"quais NRs vencem este mês?\",\n"
+        "  \"o que o contrato CT-2026-014 diz sobre EPI?\"\n"
+        "Pode mandar áudio também. Tudo que grava pede sua confirmação antes."
+    )
+
+
+def ajuda_equipe(nome: str) -> str:
+    return (
+        f"Oi, {nome.split()[0]}! Comigo você pode:\n"
+        "• ver sua agenda: \"minha agenda\"\n"
+        "• ver detalhes de um serviço: \"detalhes da minha tarefa de amanhã\"\n"
+        "• avisar uma ausência: \"estou de atestado hoje\" (vai para o gestor aprovar)\n"
+        "Pode mandar áudio também."
     )

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ c.codigo if c else 'Contratos' }}{% endblock %}
+{% block content %}
+<h1>{% if c %}<a href="/contratos">Contratos</a> · {{ c.codigo }}{% else %}Contratos{% endif %}</h1>
+
+{% if not c %}
+<div class="card">
+  <p class="muted small">Uma tarefa com o campo "Contrato" igual ao código passa a exigir de <strong>toda a equipe</strong> as
+    certificações e a experiência mínima cadastradas aqui. O motor aplica essas regras sozinho; o agente do Telegram também
+    consulta o texto para responder perguntas ("o que o CT-2026-014 diz sobre EPI?").</p>
+  {% if contratos %}
+  <div class="table-scroll"><table>
+    <tr><th>Código</th><th>Cliente</th><th>Exige de todos</th><th>Atualizado</th></tr>
+    {% for x in contratos %}
+    <tr>
+      <td><a href="/contratos/{{ x.id }}">{{ x.codigo }}</a></td>
+      <td>{{ x.cliente or '' }}</td>
+      <td class="chips small">{% for cert in x.certificacoes %}<span>{{ cert }}</span>{% endfor %}
+        {% if x.anos_experiencia_min %}<span>≥ {{ x.anos_experiencia_min|h }} anos</span>{% endif %}
+        {% if x.exige_tecnico_seguranca %}<span>técnico de segurança</span>{% endif %}</td>
+      <td class="small">{{ x.atualizado_em|dt }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="muted">Nenhum contrato cadastrado.</p>{% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>{{ 'Editar contrato' if c else 'Cadastrar contrato' }}</h2>
+  {% set v = form %}
+  <form method="post" action="{{ '/contratos/' ~ c.id if c else '/contratos' }}">
+    {{ csrf() }}
+    <div class="row">
+      <label>Código <input name="codigo" required value="{{ v.codigo or '' }}" placeholder="CT-2026-014"></label>
+      <label>Cliente <input name="cliente" value="{{ v.cliente or '' }}"></label>
+      <label>Certificações obrigatórias <input name="certificacoes" value="{{ v.certificacoes or '' }}" placeholder="NR10, NR35"></label>
+      <label>Experiência mínima (anos) <input name="anos_experiencia_min" type="number" step="0.5" min="0" value="{{ v.anos_experiencia_min or 0 }}"></label>
+    </div>
+    <label><input type="checkbox" name="exige_tecnico_seguranca" {% if v.exige_tecnico_seguranca in (True, 'on') %}checked{% endif %}>
+      Exige técnico de segurança no local (o painel avisa quando a tarefa não tem essa vaga)</label>
+    <label>Observações <textarea name="observacoes">{{ v.observacoes or '' }}</textarea></label>
+    <label>Texto do contrato (cláusulas), para consulta
+      <textarea name="texto" class="grande" placeholder="Cole aqui as cláusulas. Uma por parágrafo ajuda a citar o trecho certo.">{{ v.texto or '' }}</textarea>
+    </label>
+    <div class="actions"><button type="submit">Salvar</button></div>
+  </form>
+  {% if c %}
+  <div class="actions">
+    <form class="inline" method="post" action="/contratos/{{ c.id }}/extrair">
+      {{ csrf() }}<button class="sec" type="submit" {% if not ia or not c.texto %}disabled title="{{ 'Defina GEMINI_API_KEY' if not ia else 'Cole e salve o texto antes' }}"{% endif %}>Extrair exigências do texto com IA</button>
+    </form>
+    <form class="inline" method="post" action="/contratos/{{ c.id }}/remover" onsubmit="return confirm('Remover o contrato? As tarefas com este código deixam de ter as regras extras.')">
+      {{ csrf() }}<button class="danger" type="submit">Remover</button>
+    </form>
+  </div>
+  <p class="muted small">A extração lê o texto com o Gemini uma vez e soma o que encontrar às exigências acima. Revise antes de usar.</p>
+  {% endif %}
+</div>
+
+{% if c %}
+<div class="card">
+  <h2>Tarefas deste contrato</h2>
+  {% for t in tarefas %}
+    <div><a href="/tarefas/{{ t.id }}">#{{ t.id }} {{ t.titulo }}</a>
+      <span class="muted small">· {{ t.inicio|dt }}</span> <span class="badge b-{{ t.status }}">{{ STATUS_LABEL[t.status] }}</span></div>
+  {% else %}<p class="muted">Nenhuma tarefa usa este código.</p>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

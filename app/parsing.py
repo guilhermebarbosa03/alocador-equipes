@@ -25,14 +25,20 @@ def ler_data(valor: str) -> date:
 
 
 def especialidades(entrada: str | list[str] | None, campo_nivel: str, padrao: int) -> list[dict]:
-    """'Elétrica:4, Automação' -> [{'nome': 'Elétrica', campo_nivel: 4}, {'nome': 'Automação', campo_nivel: padrao}]"""
+    """'Elétrica:4, Automação' -> [{'nome': 'Elétrica', campo_nivel: 4}, {'nome': 'Automação', campo_nivel: padrao}]
+
+    Nível fora de 1 a 5 é erro (antes 'Elétrica:99' virava 5 em silêncio e 'Elétrica:0' quebrava a validação).
+    Repetidas são unificadas depois, nos schemas (fica o maior nível).
+    """
     lista = itens(entrada) if isinstance(entrada, str) or entrada is None else [i.strip() for i in entrada if i.strip()]
     out = []
     for item in lista:
         nome, valor = nome_valor(item)
-        if valor is not None and not valor.isdigit():
+        if not nome:
+            raise ValueError(f"especialidade sem nome em '{item}'")
+        if valor is not None and not (valor.isdigit() and 1 <= int(valor) <= 5):
             raise ValueError(f"nível inválido em '{item}' (use nome:1 a nome:5)")
-        out.append({"nome": nome, campo_nivel: min(int(valor), 5) if valor else padrao})
+        out.append({"nome": nome, campo_nivel: int(valor) if valor else padrao})
     return out
 
 

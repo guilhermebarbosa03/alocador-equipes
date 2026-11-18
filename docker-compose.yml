@@ -1,11 +1,19 @@
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://alocacao:${POSTGRES_PASSWORD:-troque-esta-senha}@db:5432/alocacao
+  TZ: America/Sao_Paulo
+  APP_TIMEZONE: ${APP_TIMEZONE:-America/Sao_Paulo}
+  # assina sessões, avisos de tela e links de calendário: defina no .env para não mudar a cada deploy
+  SECRET_KEY: ${SECRET_KEY:-}
+
 services:
   db:
-    # Postgres com pgvector: o mesmo banco vai guardar os embeddings do RAG (fase 3)
+    # Postgres com pgvector: o mesmo banco pode guardar embeddings de contratos no futuro
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: alocacao
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-troque-esta-senha}
       POSTGRES_DB: alocacao
+      TZ: America/Sao_Paulo
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,32 +25,43 @@ services:
   app:
     build: .
     environment:
-      DATABASE_URL: postgresql+psycopg://alocacao:${POSTGRES_PASSWORD:-troque-esta-senha}@db:5432/alocacao
+      <<: *app-env
+      PAINEL_SENHA: ${PAINEL_SENHA:-}
+      API_TOKEN: ${API_TOKEN:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}  # só para extrair exigências de contratos no painel
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # /saude também confere o banco (SELECT 1)
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/saude', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   bot:
-    # Telegram por long polling: não precisa expor porta nenhuma
+    # Telegram por long polling: não precisa expor porta nenhuma. Não depende do painel, só do banco.
     build: .
     command: ["python", "-m", "app.bot"]
     environment:
-      DATABASE_URL: postgresql+psycopg://alocacao:${POSTGRES_PASSWORD:-troque-esta-senha}@db:5432/alocacao
+      <<: *app-env
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_USUARIOS_PERMITIDOS: ${TELEGRAM_USUARIOS_PERMITIDOS:-}
+      AVISOS_EQUIPE: ${AVISOS_EQUIPE:-1}
+      RESUMO_SEMANAL: ${RESUMO_SEMANAL:-1}
       AGENTE_DB: /dados/agente.db
     volumes:
       - agente:/dados
     depends_on:
       db:
         condition: service_healthy
-      app:
-        condition: service_started
     restart: unless-stopped
 
 volumes:

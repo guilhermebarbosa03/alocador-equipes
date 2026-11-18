@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Semana de {{ segunda|dm }}{% endblock %}
+{% block largura %}largo{% endblock %}
+{% block content %}
+<h1>Semana de {{ segunda|d }}</h1>
+
+<div class="card">
+  <form method="get" action="/semana" class="actions" style="margin-top:0">
+    <a class="btn sec mini" href="/semana?inicio={{ anterior.isoformat() }}{% if papel %}&papel={{ papel|urlencode }}{% endif %}">← anterior</a>
+    <a class="btn sec mini" href="/semana{% if papel %}?papel={{ papel|urlencode }}{% endif %}">esta semana</a>
+    <a class="btn sec mini" href="/semana?inicio={{ proxima.isoformat() }}{% if papel %}&papel={{ papel|urlencode }}{% endif %}">próxima →</a>
+    <input type="hidden" name="inicio" value="{{ segunda.isoformat() }}">
+    <select name="papel" onchange="this.form.submit()" style="width:auto; margin:0">
+      <option value="">Todas as funções</option>
+      {% for p in papeis %}<option value="{{ p }}" {% if p == papel %}selected{% endif %}>{{ p }}</option>{% endfor %}
+    </select>
+  </form>
+  <div class="legenda" style="margin-top:10px">
+    <span class="ev">interna</span><span class="ev campo">campo</span><span class="ev proposta">proposta</span>
+    <span class="ev ausencia">ausência</span>
+    <span class="muted">Horas por dia contam só o confirmado; em vermelho, acima do limite diário.</span>
+  </div>
+</div>
+
+<div class="card table-scroll">
+  <table class="semana">
+    <tr>
+      <th>Funcionário · carga</th>
+      {% for d in grade.dias %}<th>{{ DIAS_SEMANA[loop.index0] }} {{ d|dm }}</th>{% endfor %}
+    </tr>
+    {% for l in grade.linhas %}
+    <tr>
+      <td>
+        <a href="/funcionarios/{{ l.f.id }}">{{ l.f.nome }}</a>
+        <div class="muted small">{{ l.f.papel }} · {{ l.total|h }}h / {{ l.f.carga_horaria_semanal|h }}h{% if l.previstas %} <span title="horas em propostas ainda não confirmadas">(+{{ l.previstas|h }}h prop.)</span>{% endif %}</div>
+        <div class="barra"><span class="{{ 'cheia' if l.pct >= 100 else ('alta' if l.pct >= 85 else '') }}" style="width: {{ [l.pct, 100]|min }}%"></span></div>
+      </td>
+      {% for d in grade.dias %}
+      {% set k = loop.index0 %}
+      <td class="{{ 'fds' if k >= 5 }} {{ 'hoje' if d == hoje }}">
+        {% for ev in l.celulas[k] %}
+          {% if ev.tipo == 'ausencia' %}
+            <span class="ev ausencia" title="Ausência: {{ ev.motivo }}">{{ ev.motivo }}</span>
+          {% else %}
+            <a class="ev {{ 'campo' if ev.campo }} {{ 'proposta' if ev.status == 'proposta' }}" href="/tarefas/{{ ev.id }}"
+               title="#{{ ev.id }} {{ ev.titulo }} · {{ ev.inicio|dt }} → {{ ev.fim|dt }}{{ ' · proposta' if ev.status == 'proposta' }}">#{{ ev.id }} {{ ev.titulo }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if l.horas[k] %}<div class="horas-dia {{ 'excede' if l.excede_dia[k] }}">{{ l.horas[k]|h }}h</div>{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">Nenhum funcionário ativo{% if papel %} com a função {{ papel }}{% endif %}.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

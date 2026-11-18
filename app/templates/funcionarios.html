@@ -5,18 +5,23 @@
 
 <div class="card">
   <div class="table-scroll"><table>
-    <tr><th>Nome</th><th>Papel</th><th>Especialidades</th><th>Certificações</th><th>Carga</th><th>Exp.</th></tr>
+    <tr><th>Nome</th><th>Papel</th><th>Especialidades</th><th>Certificações</th><th>Carga</th><th>Exp.</th><th>Base</th></tr>
     {% for f in funcionarios %}
     <tr{% if not f.ativo %} class="muted"{% endif %}>
       <td><a href="/funcionarios/{{ f.id }}">{{ f.nome }}</a>{% if not f.ativo %} <span class="badge b-cancelada">inativo</span>{% endif %}</td>
       <td>{{ f.papel }}</td>
       <td class="chips">{% for e in f.especialidades %}<span>{{ e.nome }} {{ e.nivel }}</span>{% endfor %}</td>
-      <td class="chips">{% for c in f.certificacoes %}<span>{{ c.nome }}{% if c.validade %} até {{ c.validade|d }}{% endif %}</span>{% endfor %}</td>
-      <td class="small">{{ f.carga_horaria_semanal|round(1) }}h/sem</td>
-      <td class="small">{{ f.anos_experiencia|round(1) }} anos</td>
+      <td class="chips">{% for c in f.certificacoes %}
+        {% set dias = (c.validade - hoje).days if c.validade else none %}
+        <span class="{{ 'vencida' if dias is not none and dias < 0 else ('vence' if dias is not none and dias <= 30 else '') }}"
+              title="{{ 'vencida' if dias is not none and dias < 0 else '' }}">{{ c.nome }}{% if c.validade %} até {{ c.validade|d }}{% endif %}</span>
+      {% endfor %}</td>
+      <td class="small">{{ f.carga_horaria_semanal|h }}h/sem<br>{{ f.horas_max_dia|h }}h/dia</td>
+      <td class="small">{{ f.anos_experiencia|h }} anos</td>
+      <td class="small">{{ f.base or '' }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="muted">Nenhum funcionário cadastrado.</td></tr>
+    <tr><td colspan="7" class="muted">Nenhum funcionário cadastrado.</td></tr>
     {% endfor %}
   </table></div>
 </div>

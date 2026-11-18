@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar #' ~ t.id if t else 'Nova tarefa' }}{% endblock %}
+{% block content %}
+<h1>{% if t %}Editar <a href="/tarefas/{{ t.id }}">#{{ t.id }}</a>{% else %}Nova tarefa{% endif %}</h1>
+{% set v = form %}
+<form method="post" action="{{ '/tarefas/' ~ t.id ~ '/editar' if t else '/tarefas' }}">
+  {{ csrf() }}
+  <div class="card">
+    <h2>Dados do serviço</h2>
+    <div class="row">
+      <label>Título <input name="titulo" required value="{{ v.titulo or '' }}" placeholder="Manutenção preventiva subestação X"></label>
+      <label>Tipo
+        <select name="tipo">
+          <option value="interna" {% if v.tipo == 'interna' %}selected{% endif %}>Interna</option>
+          <option value="campo" {% if v.tipo == 'campo' %}selected{% endif %}>Campo / viagem</option>
+        </select>
+      </label>
+      <label>Local <input name="local" value="{{ v.local or '' }}" placeholder="Contagem/MG"></label>
+      <label>Contrato <input name="contrato" list="contratos" value="{{ v.contrato or '' }}" placeholder="CT-2026-014"></label>
+    </div>
+    <div class="row">
+      <label>Início <input type="datetime-local" name="inicio" required value="{{ v.inicio or '' }}"></label>
+      <label>Fim <input type="datetime-local" name="fim" required value="{{ v.fim or '' }}"></label>
+      <label>Horas por pessoa (opcional)
+        <input name="horas_por_pessoa" type="number" step="0.5" min="0.5" value="{{ v.horas_por_pessoa or '' }}" placeholder="padrão: 8h por dia">
+      </label>
+      <label>Prioridade (1–5)
+        <input name="prioridade" type="number" min="1" max="5" value="{{ v.prioridade or 3 }}">
+      </label>
+    </div>
+    <label>Descrição <textarea name="descricao">{{ v.descricao or '' }}</textarea></label>
+    {% if t %}<p class="muted small">Ao salvar, propostas pendentes são descartadas e quem já está confirmado é conferido de novo.
+      Ninguém é tirado sozinho: o painel mostra quem passou a não cumprir as regras.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Equipe necessária</h2>
+    <p class="muted small">Uma linha por função. Especialidades no formato <code>nome:nível mínimo</code>, separadas por vírgula.
+      Linhas sem função são ignoradas.</p>
+    <div id="vagas">
+    {% for l in linhas %}
+      {% set i = loop.index0 %}
+      {% set conf = (confirmados or {}).get(l.id|int if l.id else none, 0) %}
+      <div class="row req-linha">
+        <input type="hidden" name="req_id_{{ i }}" value="{{ l.id or '' }}">
+        <label>Função <input name="req_papel_{{ i }}" list="papeis" value="{{ l.papel or '' }}" {% if i == 0 %}required{% endif %} {% if conf %}readonly title="tem gente confirmada"{% endif %} placeholder="tecnico"></label>
+        <label>Quantidade <input name="req_qtd_{{ i }}" type="number" min="{{ conf or 1 }}" value="{{ l.qtd or 1 }}"></label>
+        <label>Especialidades exigidas <input name="req_esp_{{ i }}" value="{{ l.esp or '' }}" placeholder="Elétrica:3, SPDA:2"></label>
+        <label>Certificações exigidas <input name="req_cert_{{ i }}" value="{{ l.cert or '' }}" placeholder="NR10, NR35"></label>
+        <label>Desejáveis <input name="req_des_{{ i }}" value="{{ l.des or '' }}" placeholder="Automação"></label>
+        <label>Experiência mínima (anos) <input name="req_exp_{{ i }}" type="number" step="0.5" min="0" value="{{ l.exp or 0 }}"></label>
+        {% if conf %}<span class="muted small remover">{{ conf }} confirmado(s)</span>
+        {% elif i > 0 or linhas|length > 1 %}<button type="button" class="mini danger remover" onclick="removerVaga(this)">remover</button>{% endif %}
+      </div>
+    {% endfor %}
+    </div>
+    <button type="button" class="sec mini" onclick="adicionarVaga()">+ Adicionar função</button>
+    <datalist id="papeis">{% for p in papeis %}<option value="{{ p }}">{% endfor %}</datalist>
+    <datalist id="contratos">{% for c in contratos %}<option value="{{ c.codigo }}">{{ c.cliente or '' }}</option>{% endfor %}</datalist>
+  </div>
+
+  <template id="modelo-vaga">
+    <div class="row req-linha">
+      <input type="hidden" name="req_id___i__" value="">
+      <label>Função <input name="req_papel___i__" list="papeis" placeholder="tecnico"></label>
+      <label>Quantidade <input name="req_qtd___i__" type="number" min="1" value="1"></label>
+      <label>Especialidades exigidas <input name="req_esp___i__" placeholder="Elétrica:3, SPDA:2"></label>
+      <label>Certificações exigidas <input name="req_cert___i__" placeholder="NR10, NR35"></label>
+      <label>Desejáveis <input name="req_des___i__" placeholder="Automação"></label>
+      <label>Experiência mínima (anos) <input name="req_exp___i__" type="number" step="0.5" min="0" value="0"></label>
+      <button type="button" class="mini danger remover" onclick="removerVaga(this)">remover</button>
+    </div>
+  </template>
+
+  <button type="submit">{{ 'Salvar tarefa' if t else 'Criar tarefa' }}</button>
+  {% if t %}<a class="btn sec" href="/tarefas/{{ t.id }}">Voltar</a>{% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var proximo = {{ linhas|length }};
+  function adicionarVaga() {
+    var html = document.getElementById("modelo-vaga").innerHTML.replaceAll("__i__", String(proximo++));
+    document.getElementById("vagas").insertAdjacentHTML("beforeend", html);
+    var linhas = document.querySelectorAll("#vagas .req-linha");
+    linhas[linhas.length - 1].querySelector("input[name^=req_papel_]").focus();
+  }
+  function removerVaga(botao) {
+    if (document.querySelectorAll("#vagas .req-linha").length > 1) botao.closest(".req-linha").remove();
+  }
+</script>
+{% endblock %}

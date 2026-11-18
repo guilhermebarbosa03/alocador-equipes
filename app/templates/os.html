@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OS #{{ t.id }} · {{ t.titulo }}</title>
+<style>
+  /* Documento para imprimir: sempre claro, independente do tema do sistema */
+  body { margin: 0; background: #e9ecf0; color: #111; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .folha { background: #fff; max-width: 800px; margin: 20px auto; padding: 32px 36px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 14px; margin: 22px 0 8px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #222; padding-bottom: 3px; }
+  .topo { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .meta { text-align: right; color: #444; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 5px 6px; border: 1px solid #bbb; vertical-align: top; }
+  th { background: #f1f3f5; font-size: 12px; }
+  .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 18px; }
+  .campos div span { display: block; font-size: 11px; color: #555; text-transform: uppercase; }
+  .vencida { color: #b00020; font-weight: 700; }
+  .assin { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 46px; }
+  .assin div { border-top: 1px solid #222; padding-top: 4px; text-align: center; color: #444; }
+  .barra { max-width: 800px; margin: 12px auto 0; display: flex; gap: 8px; padding: 0 16px; }
+  .barra button, .barra a { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #1f6feb; background: #1f6feb; color: #fff; cursor: pointer; text-decoration: none; }
+  .barra a { background: transparent; color: #1f6feb; }
+  @media (max-width: 600px) { .folha { padding: 20px 16px; margin: 10px 0; } .assin { grid-template-columns: 1fr; } }
+  @media print { body { background: #fff; } .folha { box-shadow: none; margin: 0; max-width: none; padding: 0; } .barra { display: none; } }
+</style>
+</head>
+<body>
+<div class="barra"><button onclick="window.print()">Imprimir / salvar PDF</button><a href="/tarefas/{{ t.id }}">Voltar</a></div>
+<div class="folha">
+  <div class="topo">
+    <div><h1>Ordem de Serviço #{{ t.id }}</h1><div>{{ t.titulo }}</div></div>
+    <div class="meta">Emitida em {{ emitida|dt }}<br>Status: {{ STATUS_LABEL[t.status] }} · Prioridade {{ t.prioridade }}</div>
+  </div>
+
+  <h2>Serviço</h2>
+  <div class="campos">
+    <div><span>Início</span>{{ t.inicio|dt }}</div>
+    <div><span>Fim</span>{{ t.fim|dt }}</div>
+    <div><span>Tipo</span>{{ 'Campo' if t.tipo == 'campo' else 'Interna' }}</div>
+    <div><span>Local</span>{{ t.local or '—' }}</div>
+    <div><span>Contrato</span>{{ t.contrato or '—' }}{% if contrato and contrato.cliente %} · {{ contrato.cliente }}{% endif %}</div>
+  </div>
+  {% if t.descricao %}<p>{{ t.descricao }}</p>{% endif %}
+
+  {% if contrato %}
+  <h2>Exigências do contrato</h2>
+  <p>{% if contrato.certificacoes %}Certificações obrigatórias: <strong>{{ contrato.certificacoes|join(', ') }}</strong>. {% endif %}
+     {% if contrato.anos_experiencia_min %}Experiência mínima: {{ contrato.anos_experiencia_min|h }} anos. {% endif %}
+     {% if contrato.exige_tecnico_seguranca %}Exige técnico de segurança no local. {% endif %}</p>
+  {% if contrato.observacoes %}<p>{{ contrato.observacoes }}</p>{% endif %}
+  {% endif %}
+
+  <h2>Equipe</h2>
+  {% if equipe %}
+  <table>
+    <tr><th>Nome</th><th>Função na OS</th><th>Certificações (validade)</th><th>Contato</th></tr>
+    {% for a in equipe %}
+    <tr>
+      <td>{{ a.funcionario.nome }}</td>
+      <td>{{ papeis.get(a.requisito_id, a.funcionario.papel) }}</td>
+      <td>{% for c in a.funcionario.certificacoes %}<span class="{{ 'vencida' if c.validade and c.validade < t.fim.date() }}">{{ c.nome }}{% if c.validade %} ({{ c.validade|d }}){% endif %}</span>{{ ', ' if not loop.last }}{% endfor %}</td>
+      <td>{{ a.funcionario.email or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p>Nenhuma pessoa confirmada ainda.</p>{% endif %}
+
+  <h2>Vagas</h2>
+  <table>
+    <tr><th>Função</th><th>Qtd.</th><th>Exigências</th></tr>
+    {% for r in t.requisitos %}
+    <tr><td>{{ r.papel }}</td><td>{{ r.quantidade }}</td>
+      {% set exig = [] %}
+      {% for e in r.especialidades %}{% set _ = exig.append(e.nome ~ ' ≥ ' ~ e.nivel_min) %}{% endfor %}
+      {% for c in r.certificacoes %}{% set _ = exig.append(c) %}{% endfor %}
+      {% if r.anos_experiencia_min %}{% set _ = exig.append('≥ ' ~ (r.anos_experiencia_min|h) ~ ' anos') %}{% endif %}
+      <td>{{ exig|join(', ') or '—' }}</td></tr>
+    {% endfor %}
+  </table>
+
+  <div class="assin"><div>Responsável pela equipe</div><div>Cliente / fiscal do contrato</div></div>
+</div>
+</body>
+</html>

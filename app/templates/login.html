@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Entrar{% endblock %}
+{% block content %}
+<div class="card" style="max-width:380px; margin:40px auto">
+  <h1>Entrar no painel</h1>
+  <form method="post" action="/login">
+    {{ csrf() }}
+    <input type="hidden" name="proximo" value="{{ proximo }}">
+    <label>Senha <input type="password" name="senha" required autofocus autocomplete="current-password"></label>
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+{% endblock %}

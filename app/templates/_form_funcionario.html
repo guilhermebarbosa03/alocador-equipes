@@ -1,17 +1,18 @@
 {# Campos compartilhados entre cadastro e edição. `v` é um dict com os valores atuais. #}
+{{ csrf() }}
 <div class="row">
   <label>Nome <input name="nome" required value="{{ v.nome or '' }}"></label>
   <label>Papel / função
     <input name="papel" required list="papeis" placeholder="tecnico, engenheiro..." value="{{ v.papel or '' }}">
   </label>
   <label>E-mail <input name="email" type="email" value="{{ v.email or '' }}"></label>
-  <label>ID no Telegram <input name="telegram_id" value="{{ v.telegram_id or '' }}" placeholder="usado na fase 2"></label>
+  <label>ID no Telegram <input name="telegram_id" value="{{ v.telegram_id or '' }}" inputmode="numeric" placeholder="número; a pessoa manda /id ao bot"></label>
 </div>
 <div class="row">
   <label>Carga semanal (h) <input name="carga_horaria_semanal" type="number" step="0.5" min="1" value="{{ v.carga_horaria_semanal or 44 }}"></label>
   <label>Máx. horas/dia <input name="horas_max_dia" type="number" step="0.5" min="1" value="{{ v.horas_max_dia or 8 }}"></label>
   <label>Anos de experiência <input name="anos_experiencia" type="number" step="0.5" min="0" value="{{ v.anos_experiencia or 0 }}"></label>
-  <label>Cidade base <input name="base" value="{{ v.base or '' }}"></label>
+  <label>Cidade base <input name="base" value="{{ v.base or '' }}" placeholder="conta pontos em serviços de campo na mesma cidade"></label>
 </div>
 <label>Especialidades com nível 1–5
   <input name="especialidades" value="{{ v.especialidades or '' }}" placeholder="Elétrica:4, Automação:3, SPDA:2">
@@ -22,5 +23,6 @@
 <label>Experiências / observações
   <textarea name="resumo" placeholder="Obras, clientes, equipamentos com que já trabalhou...">{{ v.resumo or '' }}</textarea>
 </label>
-<label><input type="checkbox" name="disponivel_viagem" {% if v.disponivel_viagem is not defined or v.disponivel_viagem in (True, 'on') %}checked{% endif %}> Disponível para campo / viagem</label>
+{# checkbox desmarcado não vem no POST: a view sempre preenche disponivel_viagem (True/False) ao re-exibir #}
+<label><input type="checkbox" name="disponivel_viagem" {% if v.get('disponivel_viagem', True) in (True, 'on') %}checked{% endif %}> Disponível para campo / viagem</label>
 <datalist id="papeis">{% for p in papeis %}<option value="{{ p }}">{% endfor %}</datalist>

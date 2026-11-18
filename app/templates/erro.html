@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Não deu{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Não deu</h1>
+  <p>{{ erro_pagina }}</p>
+  {% if problemas %}
+  <ul class="motivos">{% for nome, motivos in problemas.items() %}<li><strong>{{ nome }}</strong>: {{ motivos|join('; ') }}</li>{% endfor %}</ul>
+  {% endif %}
+  <div class="actions"><a class="btn sec" href="javascript:history.back()">Voltar</a><a class="btn sec" href="/">Painel</a></div>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Tarefas{% endblock %}
+{% block content %}
+<h1>Tarefas</h1>
+
+<form class="card" method="get" action="/tarefas">
+  <div class="row">
+    <label>Status
+      <select name="status">
+        {% for valor, rotulo in [('ativas', 'Em andamento'), ('todas', 'Todas'), ('aberta', 'Aberta'), ('proposta', 'Proposta pendente'),
+                                 ('parcial', 'Parcial'), ('alocada', 'Alocada'), ('concluida', 'Concluída'), ('cancelada', 'Cancelada')] %}
+        <option value="{{ valor }}" {% if filtros.status == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>De <input type="date" name="de" value="{{ filtros.de or '' }}"></label>
+    <label>Até <input type="date" name="ate" value="{{ filtros.ate or '' }}"></label>
+    <label>Tipo
+      <select name="tipo">
+        <option value="">Todos</option>
+        <option value="campo" {% if filtros.tipo == 'campo' %}selected{% endif %}>Campo</option>
+        <option value="interna" {% if filtros.tipo == 'interna' %}selected{% endif %}>Interna</option>
+      </select>
+    </label>
+    <label>Contrato <input name="contrato" value="{{ filtros.contrato or '' }}" placeholder="CT-2026"></label>
+  </div>
+  <div class="actions">
+    <button type="submit">Filtrar</button>
+    <a class="btn sec" href="/tarefas/exportar.csv?{{ query }}">Exportar CSV</a>
+    <a class="small" href="/tarefas">limpar</a>
+  </div>
+</form>
+
+<div class="card">
+  {% if tarefas %}
+  <div class="table-scroll"><table>
+    <tr><th>#</th><th>Tarefa</th><th>Quando</th><th>Tipo</th><th>Contrato</th><th>Equipe</th><th>Status</th></tr>
+    {% for t in tarefas %}
+    {% set conf = t.alocacoes|selectattr('status', 'equalto', 'confirmada')|list %}
+    <tr>
+      <td>{{ t.id }}</td>
+      <td><a href="/tarefas/{{ t.id }}">{{ t.titulo }}</a>{% if t.local %}<div class="muted small">{{ t.local }}</div>{% endif %}</td>
+      <td class="small">{{ t.inicio|dt }}<br>{{ t.fim|dt }}</td>
+      <td>{{ t.tipo }}</td>
+      <td class="small">{{ t.contrato or '' }}</td>
+      <td class="small">{{ conf|map(attribute='funcionario_nome')|join(', ') or '—' }}</td>
+      <td><span class="badge b-{{ t.status }}">{{ STATUS_LABEL[t.status] }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted small">{{ tarefas|length }} tarefa(s).</p>
+  {% else %}
+  <p class="muted">Nenhuma tarefa com esses filtros.</p>
+  {% endif %}
+</div>
+{% endblock %}

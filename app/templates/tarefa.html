@@ -7,22 +7,35 @@
   <div class="row small">
     <div><span class="muted">Quando</span><br>{{ t.inicio|dt }} → {{ t.fim|dt }}</div>
     <div><span class="muted">Tipo</span><br>{{ t.tipo }}{% if t.local %} · {{ t.local }}{% endif %}</div>
-    <div><span class="muted">Horas por pessoa</span><br>{{ t.horas_por_pessoa ~ 'h' if t.horas_por_pessoa else ('duração, até 8h' if t.inicio.date() == t.fim.date() else '8h por dia útil') }}</div>
-    <div><span class="muted">Prioridade · Contrato</span><br>{{ t.prioridade }} · {{ t.contrato or '—' }}</div>
+    <div><span class="muted">Horas por pessoa</span><br>
+      {% set total = horas.values()|sum %}
+      {{ total|h }}h{% if horas|length > 1 %} em {{ horas|length }} dia(s){% endif %}
+      <span class="muted">{{ '(informado)' if t.horas_por_pessoa else ('(duração, até 8h)' if horas|length == 1 else '(8h por dia; dias parciais contam o trecho na jornada)') }}</span>
+    </div>
+    <div><span class="muted">Prioridade · Contrato</span><br>{{ t.prioridade }} ·
+      {% if contrato %}<a href="/contratos/{{ contrato.id }}">{{ t.contrato }}</a>{% else %}{{ t.contrato or '—' }}{% endif %}</div>
   </div>
   {% if t.descricao %}<p>{{ t.descricao }}</p>{% endif %}
-  {% if ativa %}
-  <div class="actions">
-    {% if t.status != 'alocada' %}
-    <form class="inline" method="post" action="/tarefas/{{ t.id }}/propor"><button type="submit">{{ 'Refazer proposta' if tem_proposta else 'Gerar proposta' }}</button></form>
-    {% endif %}
-    {% if tem_proposta %}
-    <form class="inline" method="post" action="/tarefas/{{ t.id }}/confirmar"><button type="submit">Confirmar proposta</button></form>
-    {% endif %}
-    <form class="inline" method="post" action="/tarefas/{{ t.id }}/concluir"><button class="sec" type="submit">Concluir</button></form>
-    <form class="inline" method="post" action="/tarefas/{{ t.id }}/cancelar" onsubmit="return confirm('Cancelar a tarefa e todas as alocações?')"><button class="danger" type="submit">Cancelar tarefa</button></form>
-  </div>
+  {% if contrato and (contrato.certificacoes or contrato.anos_experiencia_min) %}
+    <p class="small"><strong>Regras do contrato {{ contrato.codigo }}</strong> (valem para todas as vagas):
+      {% for c in contrato.certificacoes %}<span class="badge">{{ c }}</span> {% endfor %}
+      {% if contrato.anos_experiencia_min %}<span class="badge">≥ {{ contrato.anos_experiencia_min|h }} anos</span>{% endif %}</p>
   {% endif %}
+  {% for a in avisos_contrato %}<div class="flash warn small">{{ a }}</div>{% endfor %}
+  <div class="actions">
+    {% if ativa %}
+      {% if t.status != 'alocada' %}
+      <form class="inline" method="post" action="/tarefas/{{ t.id }}/propor">{{ csrf() }}<button type="submit">{{ 'Refazer proposta' if tem_proposta else 'Gerar proposta' }}</button></form>
+      {% endif %}
+      {% if tem_proposta %}
+      <form class="inline" method="post" action="/tarefas/{{ t.id }}/confirmar">{{ csrf() }}<button type="submit">Confirmar proposta</button></form>
+      {% endif %}
+      <a class="btn sec" href="/tarefas/{{ t.id }}/editar">Editar</a>
+      <form class="inline" method="post" action="/tarefas/{{ t.id }}/concluir">{{ csrf() }}<button class="sec" type="submit">Concluir</button></form>
+      <form class="inline" method="post" action="/tarefas/{{ t.id }}/cancelar" onsubmit="return confirm('Cancelar a tarefa e todas as alocações? A equipe é avisada.')">{{ csrf() }}<button class="danger" type="submit">Cancelar tarefa</button></form>
+    {% endif %}
+    <a class="btn sec" href="/tarefas/{{ t.id }}/os" target="_blank">Ordem de serviço</a>
+  </div>
 </div>
 
 {% for l in linhas %}
@@ -36,7 +49,7 @@
     {% for e in r.especialidades %}<span>{{ e.nome }} ≥ {{ e.nivel_min }}</span>{% endfor %}
     {% for c in r.certificacoes %}<span>{{ c }}</span>{% endfor %}
     {% for d in r.desejaveis %}<span>desejável: {{ d }}</span>{% endfor %}
-    {% if r.anos_experiencia_min %}<span>≥ {{ r.anos_experiencia_min }} anos</span>{% endif %}
+    {% if r.anos_experiencia_min %}<span>≥ {{ r.anos_experiencia_min|h }} anos</span>{% endif %}
   </div>
 
   <h3 style="margin-top:12px">Equipe</h3>
@@ -46,9 +59,11 @@
       <span class="badge b-{{ a.status }}">{{ a.status }}</span>
       {% if a.score is not none %}<span class="score small">{{ a.score }}</span>{% endif %}
       {% if a.justificativa %}<span class="muted small">· {{ a.justificativa.resumo }}</span>{% endif %}
-      {% if a.justificativa and a.justificativa.forcado %}<ul class="motivos">{% for m in a.justificativa.violacoes %}<li>forçado: {{ m }}</li>{% endfor %}</ul>{% endif %}
+      {% if a.justificativa and a.justificativa.forcado %}<ul class="motivos">{% for m in a.justificativa.violacoes %}<li>forçado: {{ m }}</li>{% endfor %}
+        {% if a.justificativa.motivo_forcar %}<li class="muted">motivo: {{ a.justificativa.motivo_forcar }} ({{ a.justificativa.forcado_por }})</li>{% endif %}</ul>
+      {% elif a.id in problemas %}<ul class="motivos warn">{% for m in problemas[a.id] %}<li>⚠ não cumpre mais: {{ m }}</li>{% endfor %}</ul>{% endif %}
       {% if ativa and a.status == 'confirmada' %}
-      <form class="inline" method="post" action="/alocacoes/{{ a.id }}/cancelar"><button class="mini danger" type="submit">cancelar</button></form>
+      <form class="inline" method="post" action="/alocacoes/{{ a.id }}/cancelar">{{ csrf() }}<button class="mini danger" type="submit">cancelar</button></form>
       {% endif %}
     </div>
   {% else %}
@@ -63,7 +78,7 @@
       <a href="/funcionarios/{{ a.funcionario.id }}">{{ a.funcionario.nome }}</a>
       <span class="muted small">· {{ a.detalhes.resumo }}</span>
       <form class="inline" method="post" action="/tarefas/{{ t.id }}/confirmar">
-        <input type="hidden" name="requisito_id" value="{{ r.id }}"><input type="hidden" name="funcionario_id" value="{{ a.funcionario.id }}">
+        {{ csrf() }}<input type="hidden" name="requisito_id" value="{{ r.id }}"><input type="hidden" name="funcionario_id" value="{{ a.funcionario.id }}">
         <button class="mini sec" type="submit">confirmar este</button>
       </form>
     </div>
@@ -76,14 +91,15 @@
   {% endfor %}
 
   {% if l.rejeitados %}
-  <details>
+  <details{% if not l.viaveis %} open{% endif %}>
     <summary>{{ l.rejeitados|length }} rejeitado(s) e por quê</summary>
     {% for a in l.rejeitados %}
       <div style="margin-top:6px">
         <a href="/funcionarios/{{ a.funcionario.id }}">{{ a.funcionario.nome }}</a>
-        {% if a.perfil_ok %}<span class="badge b-proposta">tem o perfil, está ocupado</span>{% endif %}
-        <form class="inline" method="post" action="/tarefas/{{ t.id }}/confirmar" onsubmit="return confirm('Confirmar violando as regras? Isso fica registrado.')">
-          <input type="hidden" name="requisito_id" value="{{ r.id }}"><input type="hidden" name="funcionario_id" value="{{ a.funcionario.id }}"><input type="hidden" name="forcar" value="1">
+        {% if a.remanejar_de %}<span class="badge b-parcial">candidato a remanejamento: liberando {% for i in a.remanejar_de %}<a href="/tarefas/{{ i }}">#{{ i }}</a>{{ ', ' if not loop.last }}{% endfor %} (prioridade menor)</span>
+        {% elif a.perfil_ok %}<span class="badge b-proposta">tem o perfil, está ocupado</span>{% endif %}
+        <form class="inline forcar" method="post" action="/tarefas/{{ t.id }}/confirmar">
+          {{ csrf() }}<input type="hidden" name="requisito_id" value="{{ r.id }}"><input type="hidden" name="funcionario_id" value="{{ a.funcionario.id }}"><input type="hidden" name="forcar" value="1"><input type="hidden" name="motivo" value="">
           <button class="mini danger" type="submit">forçar</button>
         </form>
         <ul class="motivos">{% for m in a.motivos %}<li>{{ m }}</li>{% endfor %}</ul>
@@ -94,4 +110,28 @@
   {% endif %}
 </div>
 {% endfor %}
+
+{% if historico %}
+<div class="card">
+  <details>
+    <summary>Histórico desta tarefa ({{ historico|length }})</summary>
+    {% for h in historico %}
+      <div class="small" style="margin-top:4px"><span class="muted">{{ h.quando|dt }} · {{ h.autor }}</span> · {{ h.resumo }}</div>
+    {% endfor %}
+  </details>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // forçar exige um motivo, que fica na auditoria
+  document.querySelectorAll("form.forcar").forEach(function (form) {
+    form.addEventListener("submit", function (ev) {
+      var motivo = prompt("Confirmar violando as regras? Isso fica registrado.\nMotivo:");
+      if (!motivo || !motivo.trim()) { ev.preventDefault(); return; }
+      form.querySelector("input[name=motivo]").value = motivo.trim();
+    });
+  });
+</script>
 {% endblock %}

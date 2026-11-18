@@ -6,12 +6,16 @@ jinja2==3.1.5
 python-multipart==0.0.20
 psycopg[binary]==3.2.3
 python-dotenv==1.2.4
+# fusos horários no Windows e em imagens sem /usr/share/zoneinfo
+tzdata==2026.6
 
 # agente (fase 2)
 langgraph==1.2.22
 langgraph-checkpoint-sqlite==3.1.3
 langchain-core==1.8.1
 langchain-google-genai==4.5.0
+# usado direto por scripts/verificar.py (antes vinha só como dependência indireta)
+google-genai==3.4.0
 python-telegram-bot==22.8
 
 # testes

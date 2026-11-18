@@ -16,10 +16,28 @@
     <div class="muted small">Livres hoje (08h–17h)</div>
     <div class="stat">{{ livres_hoje|length }}</div>
   </div>
+  <div class="card{% if vencimentos %} alerta{% endif %}">
+    <div class="muted small">Certificações vencidas ou vencendo em 30 dias</div>
+    <div class="stat">{{ vencimentos|length }}</div>
+  </div>
 </div>
 
+{% if solicitacoes %}
+<div class="card alerta">
+  <h2>Pedidos de ausência esperando aprovação</h2>
+  {% for s in solicitacoes %}
+    <div style="margin-bottom:8px">
+      <a href="/funcionarios/{{ s.funcionario_id }}">{{ s.funcionario.nome }}</a>
+      <span class="muted small">· {{ s.motivo }} · {{ s.inicio|dt }} → {{ s.fim|dt }} · pedido em {{ s.criada_em|dt }}</span>
+      <form class="inline" method="post" action="/solicitacoes/{{ s.id }}/aprovar">{{ csrf() }}<button class="mini" type="submit">Aprovar</button></form>
+      <form class="inline" method="post" action="/solicitacoes/{{ s.id }}/recusar">{{ csrf() }}<button class="mini danger" type="submit">Recusar</button></form>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="card">
-  <h2>Tarefas em andamento</h2>
+  <h2>Tarefas em andamento <a class="small" href="/tarefas">ver todas</a> · <a class="small" href="/semana">ver a semana</a></h2>
   {% if ativas %}
   <div class="table-scroll"><table>
     <tr><th>#</th><th>Tarefa</th><th>Quando</th><th>Tipo</th><th>Status</th></tr>
@@ -40,11 +58,23 @@
 
 <div class="grid">
   <div class="card">
+    <h2>Certificações vencidas ou vencendo</h2>
+    {% for v in vencimentos %}
+      <div><a href="/funcionarios/{{ v.funcionario_id }}">{{ v.nome }}</a>
+        · {{ v.certificacao }}
+        {% if v.dias < 0 %}<span class="badge b-vencida">venceu em {{ v.validade|d }}</span>
+        {% elif v.dias == 0 %}<span class="badge b-vencida">vence hoje</span>
+        {% else %}<span class="badge b-vence">vence em {{ v.validade|d }} ({{ v.dias }} dia{{ 's' if v.dias != 1 }})</span>{% endif %}
+      </div>
+    {% else %}<p class="muted">Nenhuma certificação vencida ou vencendo nos próximos 30 dias.</p>{% endfor %}
+    {% if vencimentos %}<p class="muted small">Renove antes que bloqueiem a alocação em campo. O bot manda este resumo aos gestores toda segunda.</p>{% endif %}
+  </div>
+  <div class="card">
     <h2>Livres hoje</h2>
     {% for a in livres_hoje %}
       <div><a href="/funcionarios/{{ a.funcionario.id }}">{{ a.funcionario.nome }}</a>
-        <span class="muted small">· {{ a.funcionario.papel }}</span></div>
-    {% else %}<p class="muted">Ninguém livre o dia todo.</p>{% endfor %}
+        <span class="muted small">· {{ a.funcionario.papel }} · {{ a.detalhes.resumo }}</span></div>
+    {% else %}<p class="muted">Ninguém livre hoje.</p>{% endfor %}
   </div>
   <div class="card">
     <h2>Ausências nos próximos 14 dias</h2>
