@@ -1,0 +1,1796 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Guia do Alocador</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+<style>
+/* Layout: manual técnico. Índice fixo à esquerda, coluna de leitura com figuras largas; abertura no formato de ordem de serviço. */
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #e9edf1; --ink: #15202b; --muted: #566273; --faint: #7d8896;
+  --line: #d6dce3; --line-strong: #aeb8c4;
+  --accent: #b8500f; --accent-soft: #fbe9dc; --sys: #1d5fcf; --sys-soft: #e2ebfb;
+  --ok: #1a7a3a; --ok-soft: #e2f2e7; --bad: #b32424; --bad-soft: #fbe4e4; --warn: #8a5a00; --warn-soft: #fbefd0;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --shot-bg: #f6f7f9; /* fundo dos prints do painel (claros nos dois temas) */
+  --font-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151b23; --surface-2: #1d2530; --ink: #e4e9ef; --muted: #9aa6b5; --faint: #7a8696;
+    --line: #29323e; --line-strong: #46525f;
+    --accent: #f08a45; --accent-soft: #3a2415; --sys: #78a8ff; --sys-soft: #172640;
+    --ok: #5cc77f; --ok-soft: #13301d; --bad: #ff7d7d; --bad-soft: #3b1718; --warn: #e2b54c; --warn-soft: #352a10;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151b23; --surface-2: #1d2530; --ink: #e4e9ef; --muted: #9aa6b5; --faint: #7a8696;
+  --line: #29323e; --line-strong: #46525f;
+  --accent: #f08a45; --accent-soft: #3a2415; --sys: #78a8ff; --sys-soft: #172640;
+  --ok: #5cc77f; --ok-soft: #13301d; --bad: #ff7d7d; --bad-soft: #3b1718; --warn: #e2b54c; --warn-soft: #352a10;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.62 var(--font-body); -webkit-font-smoothing: antialiased;
+}
+a { color: var(--sys); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, [role=tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code, kbd, .mono { font-family: var(--font-mono); font-size: .86em; }
+:not(pre) > code { background: var(--surface-2); padding: .08em .38em; border-radius: 4px; overflow-wrap: anywhere; }
+strong { font-weight: 700; }
+
+.page {
+  display: grid; grid-template-columns: 244px minmax(0, 1fr); gap: 56px;
+  max-width: 1280px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 80px;
+}
+
+/* ---------- índice ---------- */
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; padding-right: 4px; }
+.toc .marca { font: 800 20px/1 var(--font-display); letter-spacing: -.01em; margin: 4px 0 18px; display: flex; align-items: center; gap: 8px; }
+.toc .marca span { width: 10px; height: 10px; background: var(--accent); border-radius: 2px; display: inline-block; }
+.toc h2 { font: 600 11.5px/1 var(--font-display); text-transform: uppercase; letter-spacing: .09em; color: var(--faint); margin: 18px 0 8px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.toc a { display: grid; grid-template-columns: 22px 1fr; gap: 4px; text-decoration: none; color: var(--muted); font-size: 15px; line-height: 1.3; padding: 5px 8px; border-radius: 6px; }
+.toc a span { font: 600 12px/1.6 var(--font-mono); color: var(--faint); }
+.toc a:hover { background: var(--surface-2); color: var(--ink); }
+.toc a.ativo { background: var(--accent-soft); color: var(--ink); }
+.toc a.ativo span { color: var(--accent); }
+
+main { min-width: 0; }
+section { scroll-margin-top: 24px; padding-top: 56px; }
+section + section { border-top: 1px solid var(--line); margin-top: 56px; }
+
+/* ---------- tipografia ---------- */
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; letter-spacing: -.012em; margin: 0; }
+h2.cap { font-size: clamp(27px, 3.2vw, 34px); line-height: 1.15; font-weight: 800; display: flex; gap: 14px; align-items: baseline; margin-bottom: 14px; }
+h2.cap .n { font: 600 15px/1 var(--font-mono); color: var(--accent); letter-spacing: 0; transform: translateY(-4px); }
+h3 { font-size: 21px; line-height: 1.25; font-weight: 700; margin: 36px 0 10px; }
+h4 { font-size: 16.5px; font-weight: 700; margin: 22px 0 6px; }
+p, ul, ol { margin: 0 0 14px; }
+.prose > p, .prose > ul, .prose > ol, .lead, .measure { max-width: 70ch; }
+ul, ol { padding-left: 22px; }
+li { margin-bottom: 5px; }
+li::marker { color: var(--faint); }
+.lead { font-size: 19.5px; line-height: 1.55; color: var(--ink); }
+.muted { color: var(--muted); }
+.small { font-size: 14.5px; }
+.eyebrow { font: 600 12px/1 var(--font-display); text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
+
+/* ---------- abertura: ficha da OS ---------- */
+.os { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; overflow: hidden; }
+.os-top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 22px; border-bottom: 1px solid var(--line); background: var(--surface-2); font: 600 12.5px/1.4 var(--font-mono); color: var(--muted); }
+.os-top .tag { color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.os-corpo { padding: 28px 22px 26px; }
+.os h1 { font-size: clamp(44px, 7vw, 72px); line-height: .95; font-weight: 800; letter-spacing: -.03em; margin: 6px 0 16px; }
+.os-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); margin: 0; }
+.os-grid div { padding: 12px 22px 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+.os-grid div:nth-child(3n) { border-right: 0; }
+.os-grid div:nth-last-child(-n+3) { border-bottom: 0; }
+.os-grid dt { font: 600 11px/1.3 var(--font-display); text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin-bottom: 4px; }
+.os-grid dd { margin: 0; font-size: 15.5px; line-height: 1.35; }
+.atalhos { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.atalhos a { display: inline-flex; gap: 8px; align-items: center; text-decoration: none; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-strong); color: var(--ink); background: var(--surface); font-weight: 600; font-size: 15.5px; }
+.atalhos a b { color: var(--accent); font-family: var(--font-mono); font-size: 13px; }
+.atalhos a:hover { border-color: var(--accent); }
+
+/* ---------- blocos ---------- */
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.item h4 { margin: 0 0 6px; font-size: 16.5px; }
+.item p { margin: 0; font-size: 15.5px; color: var(--muted); line-height: 1.5; }
+.item p + p { margin-top: 8px; }
+.nota { border-left: 3px solid var(--sys); background: var(--sys-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; max-width: 78ch; font-size: 16px; }
+.nota.laranja { border-color: var(--accent); background: var(--accent-soft); }
+.nota strong:first-child { display: block; margin-bottom: 2px; }
+
+
+/* passos numerados (processos reais) */
+ol.passos { list-style: none; padding: 0; counter-reset: p; display: grid; gap: 10px; max-width: 78ch; }
+ol.passos > li { counter-increment: p; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; margin: 0; }
+ol.passos > li::before { content: counter(p); font: 700 14px/30px var(--font-mono); width: 30px; height: 30px; text-align: center; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--accent); color: var(--accent); }
+ol.passos > li > div { padding-top: 3px; min-width: 0; }
+
+/* tabelas */
+.tabela { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 16px 0 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 15.5px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font: 600 12px/1.3 var(--font-display); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+td.k { white-space: nowrap; font-weight: 600; }
+td .mono, td code { white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabela.compacta td, .tabela.compacta th { padding: 8px 12px; }
+tr.grupo td { background: var(--surface-2); font: 700 12.5px/1.3 var(--font-display); text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+
+/* código */
+.code { position: relative; margin: 12px 0 16px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; }
+.code pre { margin: 0; padding: 12px 16px; overflow-x: auto; font: 13.5px/1.6 var(--font-mono); }
+.code .rot { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--line); font: 600 11.5px/1 var(--font-display); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.copy { font: 600 12px/1 var(--font-body); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+.copy:hover { border-color: var(--accent); }
+
+/* figuras e diagramas */
+figure { margin: 22px 0 26px; }
+figcaption { font-size: 14.5px; color: var(--muted); margin-top: 10px; max-width: 82ch; line-height: 1.5; }
+figcaption b { color: var(--ink); }
+.diagrama { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; overflow-x: auto; }
+.dg { display: block; width: 100%; min-width: 640px; height: auto; color: var(--ink); font-family: var(--font-body); }
+.dg text { fill: currentColor; font-size: 13px; }
+.dg .t { font-weight: 700; font-size: 14px; }
+.dg .s { fill: var(--muted); font-size: 12px; }
+.dg .m { font-family: var(--font-mono); font-size: 12px; }
+.dg .lbl { fill: var(--muted); font-size: 12px; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.dg .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+.dg .ext { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1.2; }
+.dg .core { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.dg .ia { fill: var(--sys-soft); stroke: var(--sys); stroke-width: 1.4; }
+.dg .pause { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.8; }
+.dg .term { fill: var(--surface-2); stroke: currentColor; stroke-width: 1.4; }
+.dg .badbox { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.4; }
+.dg .frame { fill: none; stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 6 5; }
+.dg .sep { stroke: var(--line); stroke-width: 1; }
+.dg .ln { stroke: currentColor; stroke-width: 1.4; fill: none; }
+.dg .tr { stroke-dasharray: 5 4; }
+.dg .fraca { stroke: var(--line-strong); stroke-width: 1.4; stroke-dasharray: 4 4; fill: none; }
+.dg .escolha { stroke: var(--accent); stroke-width: 4; fill: none; stroke-linecap: round; }
+.dg .escolha-ok { stroke: var(--ok); stroke-width: 4; fill: none; stroke-linecap: round; }
+.dg .lane { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 5; }
+.dg .ah { fill: currentColor; }
+.dg .dot { fill: currentColor; }
+.dg .nc { fill: var(--accent); }
+.dg .nct { fill: var(--surface); font: 700 11px var(--font-mono); }
+.dg .okt { fill: var(--ok); font-weight: 700; }
+.dg .badt { fill: var(--bad); font-weight: 700; }
+.dg .acct { fill: var(--accent); font-weight: 700; }
+
+/* prints */
+.shot { margin: 22px 0 26px; }
+.janela { border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; background: var(--shot-bg); box-shadow: 0 1px 2px rgba(15, 25, 40, .06); }
+.janela .barra { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); font: 12px/1 var(--font-mono); color: var(--muted); min-width: 0; }
+.janela .barra i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); flex: none; }
+.janela .barra span { margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.zoomable { display: block; width: 100%; padding: 0; border: 0; background: var(--shot-bg); cursor: zoom-in; position: relative; }
+button.zoomable img { display: block; width: 100%; height: auto; }
+.shot.corte button.zoomable { max-height: var(--h, 560px); overflow: hidden; }
+.shot.corte button.zoomable::after { content: ""; position: absolute; inset: auto 0 0; height: 90px; background: linear-gradient(rgba(246, 247, 249, 0), var(--shot-bg)); }
+.ampliar { position: absolute; right: 12px; bottom: 12px; z-index: 2; font: 600 12.5px/1 var(--font-body); padding: 7px 11px; border-radius: 999px; background: rgba(21, 32, 43, .82); color: #fff; }
+.galeria { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 18px 0; }
+.galeria .shot { margin: 0; }
+.galeria button.zoomable { aspect-ratio: 16 / 11; overflow: hidden; }
+.galeria button.zoomable img { object-fit: cover; object-position: top center; height: 100%; }
+.galeria figcaption { margin-top: 8px; font-size: 14px; }
+.galeria figcaption b { display: block; font-size: 15px; }
+
+dialog#zoom { width: min(1320px, 96vw); max-width: 96vw; max-height: 92vh; padding: 0; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); color: var(--ink); }
+dialog#zoom::backdrop { background: rgba(8, 12, 18, .72); }
+dialog#zoom .zoom-top { position: sticky; top: 0; display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--line); z-index: 1; }
+dialog#zoom .zoom-cap { font-size: 14.5px; color: var(--muted); }
+dialog#zoom img { display: block; width: 100%; height: auto; background: var(--shot-bg); }
+
+/* conversa no Telegram (simulada a partir do código real) */
+.abas { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 0; }
+.abas [role=tab] { font: 600 14.5px/1 var(--font-body); padding: 9px 14px; border-radius: 8px 8px 0 0; border: 1px solid var(--line); border-bottom: 0; background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.abas [role=tab][aria-selected=true] { background: var(--surface); color: var(--ink); box-shadow: inset 0 3px 0 var(--accent); }
+.painel-aba { border: 1px solid var(--line); border-radius: 0 10px 10px 10px; background: var(--surface); padding: 18px; display: grid; grid-template-columns: minmax(0, 500px) minmax(0, 1fr); gap: 24px; }
+.chat { background: var(--surface-2); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.chat .quem { font: 600 11.5px/1 var(--font-display); text-transform: uppercase; letter-spacing: .07em; color: var(--faint); text-align: center; margin: 2px 0; }
+.msg { white-space: pre-wrap; overflow-wrap: anywhere; padding: 9px 12px; border-radius: 12px; max-width: 92%; font-size: 15px; line-height: 1.42; }
+.msg.eu { align-self: flex-end; background: var(--accent-soft); border-bottom-right-radius: 4px; }
+.msg.bot { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg .escolha { display: block; margin-top: 6px; color: var(--muted); font-style: italic; }
+.teclas { display: grid; gap: 5px; margin-top: 9px; }
+.teclas.linha { grid-template-columns: 1fr 1fr; }
+.teclas span { display: block; text-align: center; padding: 7px 8px; border-radius: 8px; background: var(--sys-soft); color: var(--sys); font-weight: 600; font-size: 14px; white-space: normal; line-height: 1.25; }
+.teclas span.tocado { outline: 2px solid var(--sys); outline-offset: -2px; }
+.intencao { align-self: flex-end; max-width: 92%; font: 12px/1.45 var(--font-mono); color: var(--muted); background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 8px; padding: 6px 9px; }
+.intencao b { color: var(--sys); }
+.lado h4 { margin-top: 0; }
+.lado p, .lado li { font-size: 15.5px; }
+
+/* pontuação */
+.legenda { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0 4px; font-size: 14.5px; }
+.legenda span { display: inline-flex; align-items: center; gap: 7px; }
+.legenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.s1 { background: var(--s1); } .s2 { background: var(--s2); } .s3 { background: var(--s3); } .s4 { background: var(--s4); } .s5 { background: var(--s5); }
+.pesos { display: flex; gap: 2px; height: 30px; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+.pesos span { display: block; }
+.ranking { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 12px; margin: 18px 0; }
+.ranking .cab { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-bottom: 8px; }
+.ranking .cab h4 { margin: 0; }
+.linha-r { display: grid; grid-template-columns: 150px minmax(0, 1fr) 58px; gap: 14px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.linha-r .nome { font-weight: 600; font-size: 15.5px; line-height: 1.25; }
+.linha-r .nome small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+.trilho { position: relative; height: 22px; background: linear-gradient(to right, transparent calc(50% - .5px), var(--line) calc(50% - .5px), var(--line) calc(50% + .5px), transparent calc(50% + .5px)); border-left: 1px solid var(--line-strong); }
+.pilha { display: flex; gap: 2px; height: 100%; border-radius: 0 4px 4px 0; overflow: hidden; }
+.pilha span { display: block; min-width: 0; }
+.pilha span:hover { filter: brightness(1.08) saturate(1.1); }
+.total { text-align: right; font: 700 16px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.rej { font-size: 14.5px; color: var(--bad); line-height: 1.35; padding-left: 10px; }
+.rej b { font-weight: 700; }
+.escala { display: grid; grid-template-columns: 150px minmax(0, 1fr) 58px; gap: 14px; font: 12px/1 var(--font-mono); color: var(--faint); padding-top: 6px; }
+.escala div { display: flex; justify-content: space-between; }
+.tag { display: inline-block; font: 700 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: .06em; padding: 4px 7px; border-radius: 999px; vertical-align: 2px; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.alt { background: var(--sys-soft); color: var(--sys); }
+.tag.bad { background: var(--bad-soft); color: var(--bad); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+#tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 13.5px; line-height: 1.35; padding: 6px 9px; border-radius: 6px; max-width: 280px; }
+
+details.faq { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin: 0 0 10px; max-width: 82ch; }
+details.faq summary { cursor: pointer; padding: 13px 16px; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after { content: "+"; font: 600 18px/1 var(--font-mono); color: var(--accent); }
+details.faq[open] summary::after { content: "−"; }
+details.faq > div { padding: 0 16px 14px; color: var(--ink); }
+details.faq > div p:last-child { margin-bottom: 0; }
+details.mais summary { cursor: pointer; color: var(--sys); font-weight: 600; font-size: 15px; margin: 6px 0; }
+
+.decisoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.decisao { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 15px 18px; min-width: 0; }
+.decisao h4 { margin: 0 0 8px; font-size: 16.5px; }
+.decisao dl { margin: 0; display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 6px 10px; font-size: 15px; line-height: 1.45; }
+.decisao dt { font: 600 11px/1.9 var(--font-display); text-transform: uppercase; letter-spacing: .07em; color: var(--faint); }
+.decisao dd { margin: 0; }
+
+
+.fluxo-aloc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 18px; font-size: 15px; }
+.fluxo-aloc .st { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); font-weight: 600; }
+.fluxo-aloc .seta { color: var(--faint); font-family: var(--font-mono); }
+
+footer.fim { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+
+@media (max-width: 1040px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .toc { position: static; max-height: none; overflow: visible; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .toc .grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 0 18px; }
+  .painel-aba { grid-template-columns: minmax(0, 1fr); }
+  .galeria { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  body { font-size: 16.5px; }
+  .grid2, .grid3, .decisoes { grid-template-columns: minmax(0, 1fr); }
+  .os-grid { grid-template-columns: minmax(0, 1fr); }
+  .os-grid div { border-right: 0; }
+  .os-grid div:nth-last-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .os-grid div:last-child { border-bottom: 0; }
+  .galeria { grid-template-columns: minmax(0, 1fr); }
+  .linha-r, .escala { grid-template-columns: 96px minmax(0, 1fr) 46px; gap: 10px; }
+  .decisao dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .decisao dt { margin-top: 6px; }
+  section { padding-top: 40px; }
+  section + section { margin-top: 40px; }
+}
+</style>
+
+<div class="page">
+
+<nav class="toc" aria-label="Índice do guia">
+  <div class="marca"><span></span>Alocador</div>
+  <div class="grupos">
+    <div>
+      <h2>Usar</h2>
+      <ol>
+        <li><a href="#visao"><span>1</span>O que o sistema faz</a></li>
+        <li><a href="#rodar"><span>2</span>Instalar e rodar</a></li>
+        <li><a href="#conceitos"><span>3</span>Conceitos e dados</a></li>
+        <li><a href="#painel"><span>4</span>Usar o painel</a></li>
+        <li><a href="#bot"><span>5</span>Usar o bot do Telegram</a></li>
+        <li><a href="#api"><span>6</span>Usar a API</a></li>
+      </ol>
+    </div>
+    <div>
+      <h2>Por dentro</h2>
+      <ol>
+        <li><a href="#arquitetura"><span>7</span>Arquitetura</a></li>
+        <li><a href="#motor"><span>8</span>Motor de alocação</a></li>
+        <li><a href="#agente"><span>9</span>Agente de IA</a></li>
+        <li><a href="#avisos"><span>10</span>Avisos e ausências</a></li>
+        <li><a href="#contratos"><span>11</span>Contratos</a></li>
+        <li><a href="#seguranca"><span>12</span>Segurança e privacidade</a></li>
+        <li><a href="#infra"><span>13</span>Datas, banco e processos</a></li>
+      </ol>
+    </div>
+    <div>
+      <h2>Contexto</h2>
+      <ol>
+        <li><a href="#tecnologias"><span>14</span>Tecnologias</a></li>
+        <li><a href="#decisoes"><span>15</span>Decisões técnicas</a></li>
+        <li><a href="#limites"><span>16</span>Limitações</a></li>
+        <li><a href="#perguntas"><span>17</span>Perguntas frequentes</a></li>
+      </ol>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<header class="os">
+  <div class="os-top"><span class="tag">Guia do sistema</span><span>versão 0.2.0</span></div>
+  <div class="os-corpo">
+    <h1>Alocador</h1>
+    <p class="lead">Cadastro de equipe, disponibilidade e alocação de pessoas em serviços internos e idas a campo. O sistema monta a equipe com regras explícitas, explica por que cada pessoa ficou de fora e pede confirmação antes de gravar. Gestores usam o painel web, a API ou o bot do Telegram; a equipe recebe avisos e informa ausências pelo bot.</p>
+    <div class="atalhos">
+      <a href="#rodar"><b>2</b>Quero instalar</a>
+      <a href="#painel"><b>4</b>Quero usar</a>
+      <a href="#arquitetura"><b>7</b>Quero entender por dentro</a>
+    </div>
+  </div>
+  <dl class="os-grid">
+    <div><dt>Para que serve</dt><dd>Escalar técnicos e engenheiros respeitando NRs, jornada e contratos</dd></div>
+    <div><dt>Quem usa</dt><dd>Gestores (painel, API, Telegram) e equipe de campo (Telegram)</dd></div>
+    <div><dt>Base</dt><dd>Python 3.12 · FastAPI · SQLAlchemy · Jinja</dd></div>
+    <div><dt>IA</dt><dd>LangGraph com o modelo escolhido no <code>.env</code> (Gemini por padrão; Claude, OpenAI ou Ollama), só para interpretar pedidos</dd></div>
+    <div><dt>Banco</dt><dd>SQLite no computador ou PostgreSQL 16 no Docker</dd></div>
+    <div><dt>Testes</dt><dd>115 com pytest, com a IA simulada</dd></div>
+  </dl>
+</header>
+
+<!-- ======================================================= 1 -->
+<section id="visao" class="prose">
+  <h2 class="cap"><span class="n">1</span>O que o sistema faz</h2>
+  <p>O Alocador monta as equipes de uma empresa de serviços técnicos (manutenção elétrica, SPDA, subestações, automação). Para escolher quem vai a cada serviço, ele confere a função da pessoa, o nível em cada especialidade, NR10 e NR35 válidas até o fim do serviço, férias e atestados, outras tarefas no mesmo horário, a jornada do dia, a carga da semana, o descanso entre jornadas e o que o contrato do cliente exige.</p>
+
+  <div class="grid2">
+    <div class="item"><h4>Cadastro da equipe</h4><p>Função, especialidades com nível de 1 a 5, certificações com validade, carga semanal, horas máximas por dia, anos de experiência, cidade base, se viaja e o ID do Telegram.</p></div>
+    <div class="item"><h4>Tarefas com vagas</h4><p>Cada tarefa diz quem precisa: "2× técnico com Elétrica ≥ 3 e NR10, desejável Subestações". Pode ser interna ou de campo, ter prioridade de 1 a 5 e um contrato.</p></div>
+    <div class="item"><h4>Proposta explicada</h4><p>O motor gera um ranking de 0 a 100, escolhe a melhor equipe possível e lista quem ficou de fora com o motivo de cada um.</p></div>
+    <div class="item"><h4>Confirmação conferida</h4><p>Ao confirmar, as regras são checadas de novo. Uma escolha que viola regras pode ser forçada, com o motivo registrado na auditoria.</p></div>
+    <div class="item"><h4>Ausências e mudanças</h4><p>Ao registrar uma ausência, editar ou remarcar uma tarefa, o sistema mostra quem deixou de cumprir as regras e sugere substitutos para o gestor escolher.</p></div>
+    <div class="item"><h4>Contratos</h4><p>Certificações e experiência exigidas por um contrato valem para toda a equipe das tarefas dele. O bot responde perguntas citando a cláusula.</p></div>
+    <div class="item"><h4>Bot do Telegram</h4><p>O gestor pede em texto ou áudio ("preciso de 2 técnicos com NR35 pra quarta em Betim") e aprova com um botão.</p></div>
+    <div class="item"><h4>Visões e saídas</h4><p>Grade da semana, certificações vencendo em 30 dias, ordem de serviço para imprimir, agenda <code>.ics</code> para o celular, exportação CSV e auditoria.</p></div>
+  </div>
+</section>
+
+<!-- ======================================================= 2 -->
+<section id="rodar" class="prose">
+  <h2 class="cap"><span class="n">2</span>Instalar e rodar</h2>
+  <p>Dá para rodar no computador, com SQLite, ou com Docker, que sobe Postgres, painel e bot juntos.</p>
+
+  <h3>No computador (SQLite)</h3>
+  <ol class="passos">
+    <li><div>Crie o ambiente virtual e instale as dependências.
+      <div class="code"><div class="rot">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt</code></pre></div></div></li>
+    <li><div>Crie os dados de exemplo: 10 funcionários, 2 contratos e 3 tarefas na semana seguinte. Só roda com o banco vazio; <code>--reset</code> apaga tudo e recria.
+      <div class="code"><div class="rot">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>.venv\Scripts\python -m scripts.seed</code></pre></div></div></li>
+    <li><div>Suba o painel e a API. Abra <code>http://localhost:8000</code> (painel) e <code>http://localhost:8000/docs</code> (API).
+      <div class="code"><div class="rot">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>.venv\Scripts\python -m uvicorn app.main:app --reload</code></pre></div></div></li>
+    <li><div>Opcional: configure o bot (seção 5), confira o <code>.env</code> e suba o bot num segundo terminal. Painel e bot podem usar o mesmo <code>alocacao.db</code> ao mesmo tempo.
+      <div class="code"><div class="rot">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>.venv\Scripts\python -m scripts.verificar
+.venv\Scripts\python -m app.bot</code></pre></div></div></li>
+  </ol>
+
+  <h3>Com Docker (Postgres + pgvector)</h3>
+  <p>Defina pelo menos <code>POSTGRES_PASSWORD</code> e <code>SECRET_KEY</code> num arquivo <code>.env</code>. O <code>docker compose</code> sobe três serviços: <code>db</code>, <code>app</code> (painel e API na porta 8000) e <code>bot</code>.</p>
+  <div class="code"><div class="rot">PowerShell<button class="copy" type="button">Copiar</button></div><pre><code>docker compose up -d --build
+docker compose exec app python -m scripts.seed</code></pre></div>
+
+  <h3>Outros comandos úteis</h3>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Comando</th><th>Para que serve</th></tr></thead>
+    <tbody>
+      <tr><td><code>.venv\Scripts\python -m pytest -q</code></td><td>Roda os 115 testes. Usam banco em memória e um "modelo falso" no lugar da IA.</td></tr>
+      <tr><td><code>.venv\Scripts\python -m app.agente.cli</code></td><td>Conversa com o agente no terminal, sem Telegram.</td></tr>
+      <tr><td><code>.venv\Scripts\python -m scripts.verificar</code></td><td>Mostra o provedor de IA em uso e confere a chave dele (com uma chamada de teste), o modelo, o token do Telegram e a lista de gestores, sem mostrar segredos.</td></tr>
+      <tr><td><code>.venv\Scripts\python -m scripts.seed --reset</code></td><td>Apaga o banco e recria os dados de exemplo.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Variáveis do <code>.env</code></h3>
+  <p>Copie <code>.env.example</code> para <code>.env</code>. Nada é obrigatório para o painel funcionar no próprio computador.</p>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Variável</th><th>Padrão</th><th>O que faz</th></tr></thead>
+    <tbody>
+      <tr class="grupo"><td colspan="3">Banco e fuso</td></tr>
+      <tr><td><code>DATABASE_URL</code></td><td><code>sqlite:///./alocacao.db</code></td><td>Banco principal. No Docker aponta para o Postgres.</td></tr>
+      <tr><td><code>POSTGRES_PASSWORD</code></td><td>—</td><td>Senha do Postgres no Docker.</td></tr>
+      <tr><td><code>APP_TIMEZONE</code></td><td><code>America/Sao_Paulo</code></td><td>Fuso do negócio. "Hoje" e "amanhã" seguem esse fuso mesmo num servidor em UTC.</td></tr>
+      <tr class="grupo"><td colspan="3">Segurança</td></tr>
+      <tr><td><code>PAINEL_SENHA</code></td><td>vazio</td><td>Com valor, o painel pede login (sessão de 7 dias).</td></tr>
+      <tr><td><code>API_TOKEN</code></td><td>vazio</td><td>Com valor, <code>/api/*</code> exige <code>Authorization: Bearer &lt;token&gt;</code>.</td></tr>
+      <tr><td><code>SECRET_KEY</code></td><td>gera <code>.secret_key</code></td><td>Assina sessões, avisos de tela e links de calendário.</td></tr>
+      <tr class="grupo"><td colspan="3">IA e Telegram</td></tr>
+      <tr><td><code>LLM_PROVIDER</code></td><td><code>gemini</code></td><td>Provedor de IA do agente e da extração de contratos: <code>gemini</code>, <code>anthropic</code> (ou <code>claude</code>), <code>openai</code> ou <code>ollama</code>. Veja a seção 9.</td></tr>
+      <tr><td><code>GEMINI_API_KEY</code></td><td>vazio</td><td>Chave do Google AI Studio. Use um projeto sem faturamento para ficar no plano gratuito.</td></tr>
+      <tr><td><code>GEMINI_MODEL</code></td><td><code>gemini-3.5-flash-lite</code></td><td>Modelo do Gemini.</td></tr>
+      <tr><td><code>ANTHROPIC_API_KEY</code> / <code>ANTHROPIC_MODEL</code></td><td>vazio / <code>claude-haiku-5-5</code></td><td>Chave e modelo do Claude, usados com <code>LLM_PROVIDER=anthropic</code>.</td></tr>
+      <tr><td><code>OPENAI_API_KEY</code> / <code>OPENAI_MODEL</code></td><td>vazio / <code>gpt-5-mini</code></td><td>Chave e modelo da OpenAI, usados com <code>LLM_PROVIDER=openai</code>.</td></tr>
+      <tr><td><code>OPENAI_BASE_URL</code></td><td>vazio (OpenAI)</td><td>URL de outra API compatível com a da OpenAI: OpenRouter, Groq, DeepSeek, LM Studio...</td></tr>
+      <tr><td><code>OLLAMA_MODEL</code> / <code>OLLAMA_BASE_URL</code></td><td><code>qwen3</code> / <code>http://localhost:11434</code></td><td>Modelo local do Ollama, sem chave. No Docker, aponta para o Ollama do computador.</td></tr>
+      <tr><td><code>TELEGRAM_BOT_TOKEN</code></td><td>vazio</td><td>Token do bot, criado com o @BotFather.</td></tr>
+      <tr><td><code>TELEGRAM_USUARIOS_PERMITIDOS</code></td><td>vazio</td><td>Gestores, separados por vírgula. Prefira o ID numérico (mande <code>/id</code> ao bot).</td></tr>
+      <tr><td><code>AVISOS_EQUIPE</code></td><td><code>1</code></td><td>Avisa a equipe quando é escalada, removida ou a tarefa muda de horário.</td></tr>
+      <tr><td><code>RESUMO_SEMANAL</code></td><td><code>1</code></td><td>Resumo de certificações vencendo para os gestores, às segundas a partir das 08h.</td></tr>
+      <tr><td><code>AGENTE_DB</code></td><td><code>./agente.db</code></td><td>Onde o agente guarda conversas e aprovações pendentes.</td></tr>
+      <tr class="grupo"><td colspan="3">Regras de agenda</td></tr>
+      <tr><td><code>DESCANSO_MIN_HORAS</code></td><td><code>11</code></td><td>Descanso mínimo entre jornadas (CLT art. 66). <code>0</code> desliga.</td></tr>
+      <tr><td><code>DESLOCAMENTO_MIN_MINUTOS</code></td><td><code>60</code></td><td>Intervalo mínimo entre dois serviços de campo em cidades diferentes. <code>0</code> desliga.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================================================= 3 -->
+<section id="conceitos" class="prose">
+  <h2 class="cap"><span class="n">3</span>Conceitos e dados</h2>
+  <p>Termos usados no painel, no bot e no código.</p>
+  <div class="tabela"><table>
+    <thead><tr><th>Termo</th><th>O que é</th><th>No código</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Funcionário</td><td>Pessoa cadastrada. Só os ativos entram nas propostas. Desativar não apaga o histórico.</td><td><code>Funcionario</code></td></tr>
+      <tr><td class="k">Papel (função)</td><td><code>engenheiro</code>, <code>tecnico</code>, <code>tecnico de seguranca</code>… Comparado sem acento e sem maiúsculas. Uma vaga só aceita pessoas do mesmo papel.</td><td><code>Funcionario.papel</code></td></tr>
+      <tr><td class="k">Especialidade</td><td>Nome e nível de 1 (básico) a 5 (especialista). No formulário: <code>Elétrica:4</code>.</td><td><code>Especialidade</code></td></tr>
+      <tr><td class="k">Certificação</td><td>NR10, NR35, ASO, CREA… com validade opcional. Precisa valer até o fim da tarefa. Se aparece repetida, vale a de validade mais longa.</td><td><code>Certificacao</code></td></tr>
+      <tr><td class="k">Tarefa (serviço)</td><td>Interna ou de campo, com período, local, prioridade de 1 a 5 e contrato opcional.</td><td><code>Tarefa</code></td></tr>
+      <tr><td class="k">Vaga</td><td>Parte da tarefa: papel, quantidade, especialidades com nível mínimo, certificações, desejáveis e experiência mínima.</td><td><code>Requisito</code></td></tr>
+      <tr><td class="k">Alocação</td><td>Liga uma pessoa a uma vaga. Começa como <em>proposta</em>, vira <em>confirmada</em>; quando alguém sai, fica <em>cancelada</em> no histórico.</td><td><code>Alocacao</code></td></tr>
+      <tr><td class="k">Indisponibilidade</td><td>Ausência registrada: férias, atestado, treinamento, folga.</td><td><code>Indisponibilidade</code></td></tr>
+      <tr><td class="k">Pedido de ausência</td><td>Ausência que o próprio funcionário informou no bot. Vira indisponibilidade quando um gestor aprova.</td><td><code>SolicitacaoAusencia</code></td></tr>
+      <tr><td class="k">Contrato</td><td>Código (ex.: <code>CT-2026-014</code>) com certificações obrigatórias, experiência mínima, exigência de técnico de segurança e o texto das cláusulas.</td><td><code>Contrato</code></td></tr>
+      <tr><td class="k">Aviso</td><td>Mensagem na caixa de saída do bot para um funcionário: escalado, removido ou remarcado.</td><td><code>Notificacao</code></td></tr>
+      <tr><td class="k">Auditoria</td><td>Quem fez o quê e quando. Guarda o motivo das alocações forçadas.</td><td><code>Auditoria</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 1010 500" role="img" aria-label="Modelo de dados: Funcionario tem especialidades, certificações, indisponibilidades, pedidos de ausência e avisos. Alocacao liga Funcionario a uma Tarefa e a um Requisito (vaga). Tarefa aponta para Contrato pelo código. Auditoria guarda ids soltos.">
+        <defs>
+          <marker id="er-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <!-- coluna esquerda -->
+        <line class="ln" x1="230" y1="55" x2="300" y2="182"/>
+        <line class="ln" x1="230" y1="145" x2="300" y2="206"/>
+        <line class="ln" x1="230" y1="235" x2="300" y2="232"/>
+        <line class="ln" x1="230" y1="325" x2="300" y2="258"/>
+        <line class="ln" x1="230" y1="415" x2="300" y2="286"/>
+
+        <rect class="box" x="20" y="20" width="210" height="70" rx="8"/>
+        <text x="34" y="39" class="t">Especialidade</text><line class="sep" x1="20" y1="47" x2="230" y2="47"/>
+        <text x="34" y="65" class="s">nome</text><text x="34" y="82" class="s">nível de 1 a 5</text>
+
+        <rect class="box" x="20" y="110" width="210" height="70" rx="8"/>
+        <text x="34" y="129" class="t">Certificacao</text><line class="sep" x1="20" y1="137" x2="230" y2="137"/>
+        <text x="34" y="155" class="s">nome: NR10, NR35, CREA…</text><text x="34" y="172" class="s">validade (vazia = não vence)</text>
+
+        <rect class="box" x="20" y="200" width="210" height="70" rx="8"/>
+        <text x="34" y="219" class="t">Indisponibilidade</text><line class="sep" x1="20" y1="227" x2="230" y2="227"/>
+        <text x="34" y="245" class="s">início · fim</text><text x="34" y="262" class="s">motivo: férias, atestado…</text>
+
+        <line class="ln tr" x1="60" y1="290" x2="60" y2="273" marker-end="url(#er-a)"/>
+        <text x="72" y="285" class="lbl">ao aprovar</text>
+
+        <rect class="box" x="20" y="290" width="210" height="70" rx="8"/>
+        <text x="34" y="309" class="t">SolicitacaoAusencia</text><line class="sep" x1="20" y1="317" x2="230" y2="317"/>
+        <text x="34" y="335" class="s">início · fim · motivo</text><text x="34" y="352" class="s">pendente, aprovada, recusada</text>
+
+        <rect class="box" x="20" y="380" width="210" height="70" rx="8"/>
+        <text x="34" y="399" class="t">Notificacao</text><line class="sep" x1="20" y1="407" x2="230" y2="407"/>
+        <text x="34" y="425" class="s">alocado · removido · remarcado</text><text x="34" y="442" class="s">resposta: ciente ou imprevisto</text>
+
+        <!-- funcionário -->
+        <rect class="core" x="300" y="150" width="210" height="157" rx="8"/>
+        <text x="314" y="169" class="t">Funcionario</text><line class="sep" x1="300" y1="177" x2="510" y2="177"/>
+        <text x="314" y="195" class="s">papel (função)</text>
+        <text x="314" y="212" class="s">base (cidade)</text>
+        <text x="314" y="229" class="s">carga semanal · horas por dia</text>
+        <text x="314" y="246" class="s">anos de experiência</text>
+        <text x="314" y="263" class="s">disponível para viagem</text>
+        <text x="314" y="280" class="s">telegram_id</text>
+        <text x="314" y="297" class="s">ativo</text>
+
+        <!-- alocação -->
+        <line class="ln" x1="510" y1="214" x2="565" y2="214"/>
+        <text x="518" y="207" class="lbl">1</text><text x="552" y="207" class="lbl">N</text>
+        <rect class="core" x="565" y="170" width="200" height="88" rx="8"/>
+        <text x="579" y="189" class="t">Alocacao</text><line class="sep" x1="565" y1="197" x2="765" y2="197"/>
+        <text x="579" y="215" class="s">status: proposta / confirmada</text>
+        <text x="579" y="232" class="s">score de 0 a 100</text>
+        <text x="579" y="249" class="s">justificativa (JSON)</text>
+
+        <!-- tarefa -->
+        <line class="ln" x1="765" y1="214" x2="805" y2="214"/>
+        <text x="771" y="207" class="lbl">N</text><text x="794" y="207" class="lbl">1</text>
+        <rect class="core" x="805" y="120" width="190" height="122" rx="8"/>
+        <text x="819" y="139" class="t">Tarefa</text><line class="sep" x1="805" y1="147" x2="995" y2="147"/>
+        <text x="819" y="165" class="s">tipo: interna ou campo</text>
+        <text x="819" y="182" class="s">local · início · fim</text>
+        <text x="819" y="199" class="s">prioridade 1–5</text>
+        <text x="819" y="216" class="s">contrato (código)</text>
+        <text x="819" y="233" class="s">status</text>
+
+        <!-- requisito -->
+        <line class="ln" x1="900" y1="242" x2="900" y2="300"/>
+        <text x="908" y="258" class="lbl">1</text><text x="908" y="294" class="lbl">N</text>
+        <path class="ln" d="M665,258 V352 H805"/>
+        <text x="675" y="344" class="lbl">vaga ocupada</text>
+        <rect class="box" x="805" y="300" width="190" height="105" rx="8"/>
+        <text x="819" y="319" class="t">Requisito (vaga)</text><line class="sep" x1="805" y1="327" x2="995" y2="327"/>
+        <text x="819" y="345" class="s">papel · quantidade</text>
+        <text x="819" y="362" class="s">especialidades e nível mín.</text>
+        <text x="819" y="379" class="s">certificações · desejáveis</text>
+        <text x="819" y="396" class="s">experiência mínima</text>
+
+        <!-- contrato -->
+        <path class="ln tr" d="M900,120 V72 H769" marker-end="url(#er-a)"/>
+        <text x="778" y="64" class="lbl">pelo código, sem FK</text>
+        <rect class="box" x="565" y="20" width="200" height="105" rx="8"/>
+        <text x="579" y="39" class="t">Contrato</text><line class="sep" x1="565" y1="47" x2="765" y2="47"/>
+        <text x="579" y="65" class="s">codigo (CT-2026-014)</text>
+        <text x="579" y="82" class="s">certificações obrigatórias</text>
+        <text x="579" y="99" class="s">experiência · téc. de segurança</text>
+        <text x="579" y="116" class="s">texto das cláusulas</text>
+
+        <!-- auditoria -->
+        <rect class="ext" x="565" y="400" width="200" height="88" rx="8"/>
+        <text x="579" y="419" class="t">Auditoria</text><line class="sep" x1="565" y1="427" x2="765" y2="427"/>
+        <text x="579" y="445" class="s">ação · autor · quando</text>
+        <text x="579" y="462" class="s">resumo · detalhes (JSON)</text>
+        <text x="579" y="479" class="s">ids soltos, sem FK</text>
+      </svg>
+    </div>
+    <figcaption><b>As tabelas e como se ligam.</b> Linha cheia é chave estrangeira: um funcionário tem várias especialidades, certificações, ausências e alocações; uma tarefa tem várias vagas e alocações. Linha tracejada é ligação sem chave: a tarefa aponta para o contrato pelo código digitado, e o pedido de ausência vira uma indisponibilidade quando aprovado. A auditoria guarda ids soltos para o histórico continuar legível mesmo que algo seja apagado.</figcaption>
+  </figure>
+
+  <h3>O ciclo de vida de uma tarefa</h3>
+  <p>O status de uma tarefa ativa é recalculado pelas alocações a cada mudança (<code>atualizar_status</code> em <code>services.py</code>). Só "concluída" e "cancelada" são definidos pelo gestor.</p>
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 900 244" role="img" aria-label="Estados da tarefa: aberta, proposta, parcial e alocada são calculados pelas alocações; concluída e cancelada são definidas pelo gestor.">
+        <defs>
+          <marker id="st-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <rect class="frame" x="12" y="2" width="876" height="140" rx="14"/>
+        <text x="26" y="132" class="s">ativas: o status é recalculado pelas alocações</text>
+
+        <rect class="box" x="30" y="40" width="120" height="44" rx="22"/><text x="90" y="67" text-anchor="middle" class="t">aberta</text>
+        <rect class="box" x="270" y="40" width="120" height="44" rx="22"/><text x="330" y="67" text-anchor="middle" class="t">proposta</text>
+        <rect class="box" x="510" y="40" width="120" height="44" rx="22"/><text x="570" y="67" text-anchor="middle" class="t">parcial</text>
+        <rect class="core" x="750" y="40" width="120" height="44" rx="22"/><text x="810" y="67" text-anchor="middle" class="t">alocada</text>
+
+        <line class="ln" x1="150" y1="62" x2="268" y2="62" marker-end="url(#st-a)"/>
+        <text x="209" y="54" text-anchor="middle" class="lbl">gerar proposta</text>
+        <line class="ln" x1="390" y1="62" x2="508" y2="62" marker-end="url(#st-a)"/>
+        <text x="449" y="54" text-anchor="middle" class="lbl">confirmar parte</text>
+        <line class="ln" x1="630" y1="62" x2="748" y2="62" marker-end="url(#st-a)"/>
+        <text x="689" y="54" text-anchor="middle" class="lbl">completar vagas</text>
+        <path class="ln" d="M330,40 C330,6 810,6 810,38" marker-end="url(#st-a)"/>
+        <text x="570" y="31" text-anchor="middle" class="lbl">confirmar todas as vagas</text>
+        <path class="ln" d="M810,84 C810,118 570,118 570,86" marker-end="url(#st-a)"/>
+        <text x="690" y="129" text-anchor="middle" class="lbl">alguém sai ou entra vaga nova</text>
+
+        <line class="ln" x1="370" y1="142" x2="370" y2="188" marker-end="url(#st-a)"/>
+        <text x="380" y="170" class="lbl">Concluir</text>
+        <line class="ln" x1="630" y1="142" x2="630" y2="188" marker-end="url(#st-a)"/>
+        <text x="640" y="170" class="lbl">Cancelar · avisa quem estava escalado</text>
+        <rect class="term" x="300" y="190" width="140" height="44" rx="8"/><text x="370" y="217" text-anchor="middle" class="t">concluída</text>
+        <rect class="term" x="560" y="190" width="140" height="44" rx="8"/><text x="630" y="217" text-anchor="middle" class="t">cancelada</text>
+      </svg>
+    </div>
+    <figcaption><b>Estados da tarefa.</b> "Alocada" significa que todas as vagas têm gente confirmada; "parcial", que pelo menos uma pessoa foi confirmada; "proposta", que há sugestão esperando confirmação. Tarefa concluída ou cancelada vira histórico: não pode ser editada nem ter alocações mudadas (a API responde 409).</figcaption>
+  </figure>
+
+  <p>A alocação tem um ciclo mais curto:</p>
+  <div class="fluxo-aloc">
+    <span class="st">proposta</span><span class="seta">→</span><span class="st">confirmada</span><span class="seta">→</span><span class="st">cancelada</span>
+    <span class="muted small">Uma proposta nova substitui a anterior. Quem já está confirmado continua.</span>
+  </div>
+</section>
+
+<!-- ======================================================= 4 -->
+<section id="painel" class="prose">
+  <h2 class="cap"><span class="n">4</span>Usar o painel</h2>
+  <p>O painel fica em <code>http://localhost:8000</code>. Os prints usam os dados de exemplo do <code>scripts.seed</code>, com as tarefas na semana de 23/11/2026. Clique num print para ampliar.</p>
+
+  <h3>O caminho de um serviço, do pedido à equipe</h3>
+  <ol class="passos">
+    <li><div><strong>Cadastre a equipe</strong> uma vez, em <em>Funcionários</em>. Mantenha as validades das NRs em dia.</div></li>
+    <li><div><strong>Cadastre os contratos</strong> que têm exigências próprias, em <em>Contratos</em> (opcional).</div></li>
+    <li><div><strong>Crie a tarefa</strong> em <em>Nova tarefa</em>, com uma linha por função necessária.</div></li>
+    <li><div><strong>Gere a proposta.</strong> O motor escolhe a equipe e grava as escolhas como "proposta".</div></li>
+    <li><div><strong>Revise</strong> o ranking, as alternativas e os rejeitados com motivo. Troque alguém com "escolher", se quiser.</div></li>
+    <li><div><strong>Confirme.</strong> As regras são checadas de novo. Quem tem Telegram cadastrado recebe o aviso.</div></li>
+    <li><div><strong>Imprima a ordem de serviço</strong> para a equipe de campo e, depois do serviço, marque a tarefa como concluída.</div></li>
+  </ol>
+
+  <h3>Página inicial</h3>
+  <figure class="shot corte" style="--h: 620px">
+    <div class="janela"><div class="barra"><i></i><i></i><i></i><span>localhost:8000/</span></div>
+      <button class="zoomable" type="button" data-cap="Página inicial do painel"><img src="img/painel.png" width="1280" height="1392" alt="Página inicial do painel com tarefas em andamento, certificações vencendo, pedido de ausência e livres hoje"><span class="ampliar">Ver inteira</span></button>
+    </div>
+    <figcaption>O resumo do dia: tarefas em andamento, funcionários ativos e quantos estão livres hoje (08h–17h). O cartão laranja conta certificações vencidas ou vencendo em 30 dias: Helena tem NR10 vencida e Bruno tem NR35 vencendo em 6 dias. Pedidos de ausência feitos pelo Telegram aparecem com <b>Aprovar</b> e <b>Recusar</b>. Mais abaixo: livres hoje e ausências dos próximos 14 dias.</figcaption>
+  </figure>
+
+  <h3>Cadastrar e editar funcionários</h3>
+  <figure class="shot">
+    <div class="janela"><div class="barra"><i></i><i></i><i></i><span>localhost:8000/funcionarios/1</span></div>
+      <button class="zoomable" type="button" data-cap="Ficha de funcionário"><img src="img/funcionario.png" width="1280" height="995" alt="Ficha da Ana Souza com agenda, registro de ausência e formulário de cadastro" loading="lazy"></button>
+    </div>
+    <figcaption>A ficha mostra a agenda dos próximos 45 dias, o registro de ausência e o cadastro. Em "Assinar esta agenda no celular" fica o link <code>.ics</code> para Google Agenda ou Outlook.</figcaption>
+  </figure>
+  <p>Os campos de lista aceitam texto corrido, separado por vírgula:</p>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Campo</th><th>Formato</th><th>Exemplo</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Especialidades</td><td>nome ou nome:nível (1 a 5). Sem nível vale 3. Fora de 1–5 dá erro.</td><td><code>Elétrica:5, Subestações:4, Automação</code></td></tr>
+      <tr><td class="k">Certificações</td><td>nome ou nome:validade (AAAA-MM-DD ou DD/MM/AAAA). Sem data, não vence.</td><td><code>NR10:2027-11-18, NR35:18/11/2027, CREA</code></td></tr>
+      <tr><td class="k">ID no Telegram</td><td>Número que o bot mostra quando a pessoa manda <code>/id</code>. Não pode repetir entre ativos.</td><td><code>123456789</code></td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Desativar</strong> tira a pessoa das próximas propostas sem apagar nada. Se ela ainda estiver confirmada em tarefas futuras, o painel avisa em quais, para você substituir.</p>
+
+  <h3>Criar uma tarefa</h3>
+  <figure class="shot">
+    <div class="janela"><div class="barra"><i></i><i></i><i></i><span>localhost:8000/tarefas/nova</span></div>
+      <button class="zoomable" type="button" data-cap="Formulário de nova tarefa"><img src="img/tarefa-nova.png" width="1280" height="745" alt="Formulário de nova tarefa com dados do serviço e equipe necessária" loading="lazy"></button>
+    </div>
+    <figcaption>Em cima, os dados do serviço; embaixo, uma linha por função. "+ Adicionar função" cria mais linhas.</figcaption>
+  </figure>
+  <ul>
+    <li><strong>Tipo campo</strong> exige que a pessoa esteja disponível para viagem e liga as regras de proximidade e de deslocamento entre cidades.</li>
+    <li><strong>Contrato</strong> recebe o código cadastrado. As exigências dele passam a valer para todas as vagas.</li>
+    <li><strong>Horas por pessoa</strong> é opcional. Vazio, o sistema conta até 8h por dia dentro da jornada (veja a seção 8).</li>
+    <li><strong>Prioridade 4 ou 5</strong> faz o motor apontar pessoas que poderiam ser remanejadas de tarefas menos importantes.</li>
+  </ul>
+
+  <h3>A tela da tarefa</h3>
+  <p>Mostra a proposta do motor, o ranking de cada vaga e o motivo de cada rejeição.</p>
+  <figure class="shot corte" style="--h: 760px">
+    <div class="janela"><div class="barra"><i></i><i></i><i></i><span>localhost:8000/tarefas/2</span></div>
+      <button class="zoomable" type="button" data-cap="Tarefa com proposta pendente e rejeitados"><img src="img/tarefa-proposta.png" width="1280" height="1300" alt="Tarefa 2, Instalação de SPDA, com proposta pendente e seis rejeitados com os motivos" loading="lazy"><span class="ampliar">Ver inteira</span></button>
+    </div>
+    <figcaption>Tarefa #2 (SPDA em Betim, contrato CT-2026-021). Nenhum técnico é viável: Diego e Igor têm o perfil, mas estão na tarefa #1 no mesmo horário; os outros não têm SPDA ou não têm a NR35 que o contrato exige. A vaga de técnico de segurança tem a Juliana como proposta, com 57 pontos.</figcaption>
+  </figure>
+  <div class="grid2">
+    <div class="item"><h4>Botões do topo</h4><p><b>Gerar / Refazer proposta</b> roda o motor e grava as escolhas como proposta. <b>Confirmar proposta</b> confirma todas de uma vez. <b>Editar</b>, <b>Concluir</b>, <b>Cancelar tarefa</b> e <b>Ordem de serviço</b> completam a linha.</p></div>
+    <div class="item"><h4>Por vaga</h4><p><b>Equipe</b> mostra quem está proposto ou confirmado. <b>Candidatos viáveis</b> traz o ranking com o botão de escolher. <b>Rejeitados e por quê</b> lista cada motivo.</p></div>
+    <div class="item"><h4>"Tem o perfil, está ocupado"</h4><p>Marca quem cumpre as exigências da vaga e só falhou por agenda. São as pessoas que você pode liberar de outra tarefa.</p></div>
+    <div class="item"><h4>Forçar</h4><p>Confirma alguém mesmo violando regras. O navegador pede o motivo, que fica na alocação e na auditoria. Sem motivo, nada é gravado.</p></div>
+  </div>
+  <p>Se alguém já confirmado deixa de cumprir as regras (uma ausência nova, uma NR vencida, uma mudança de horário), a tela mostra um aviso ⚠ ao lado do nome, e a pessoa continua na tarefa até o gestor trocá-la ou retirá-la. No fim da página fica o histórico da tarefa, vindo da auditoria.</p>
+
+  <h3>A semana da equipe</h3>
+  <figure class="shot">
+    <div class="janela"><div class="barra"><i></i><i></i><i></i><span>localhost:8000/semana?inicio=2026-11-23</span></div>
+      <button class="zoomable" type="button" data-cap="Grade da semana"><img src="img/semana.png" width="1280" height="980" alt="Grade da semana com funcionários nas linhas e dias nas colunas" loading="lazy"></button>
+    </div>
+    <figcaption>Funcionários × dias. Verde é campo, azul é interna, tracejado é proposta, vermelho é ausência. A barra sob cada nome mostra as horas confirmadas contra a carga semanal: Igor está com 24h de 30h. Dá para filtrar por função e navegar entre semanas.</figcaption>
+  </figure>
+
+  <h3>As outras telas</h3>
+  <div class="galeria">
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/tarefas</span></div><button class="zoomable" type="button" data-cap="Lista de tarefas com filtros"><img src="img/tarefas.png" width="1280" height="680" alt="Lista de tarefas com filtros" loading="lazy"></button></div>
+      <figcaption><b>Tarefas</b>Todas, inclusive concluídas e canceladas. Filtros por status, período, tipo e contrato; botão "Exportar CSV".</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/tarefas/1</span></div><button class="zoomable" type="button" data-cap="Tarefa com equipe completa"><img src="img/tarefa-alocada.png" width="1280" height="850" alt="Tarefa 1 alocada" loading="lazy"></button></div>
+      <figcaption><b>Tarefa alocada</b>A #1, com engenheira e dois técnicos confirmados e as regras do contrato CT-2026-014.</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/tarefas/4</span></div><button class="zoomable" type="button" data-cap="Alocação forçada com motivo"><img src="img/tarefa-forcada.png" width="1280" height="610" alt="Tarefa 4 com alocação forçada" loading="lazy"></button></div>
+      <figcaption><b>Alocação forçada</b>Helena confirmada com NR10 vencida. A tela mostra a violação e o motivo informado.</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/tarefas/1/editar</span></div><button class="zoomable" type="button" data-cap="Edição de tarefa"><img src="img/tarefa-editar.png" width="1280" height="945" alt="Edição de tarefa" loading="lazy"></button></div>
+      <figcaption><b>Editar tarefa</b>Muda dados, período e vagas. Ao salvar, revalida quem já está confirmado e descarta propostas pendentes.</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/tarefas/1/os</span></div><button class="zoomable" type="button" data-cap="Ordem de serviço para imprimir"><img src="img/os.png" width="1280" height="880" alt="Ordem de serviço" loading="lazy"></button></div>
+      <figcaption><b>Ordem de serviço</b>Equipe, certificações, contrato e local, pronta para imprimir ou salvar em PDF.</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/funcionarios</span></div><button class="zoomable" type="button" data-cap="Lista de funcionários"><img src="img/funcionarios.png" width="1280" height="1370" alt="Lista de funcionários" loading="lazy"></button></div>
+      <figcaption><b>Funcionários</b>A equipe com funções, especialidades e certificações, e o formulário para cadastrar.</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/contratos</span></div><button class="zoomable" type="button" data-cap="Contratos"><img src="img/contratos.png" width="1280" height="965" alt="Lista de contratos" loading="lazy"></button></div>
+      <figcaption><b>Contratos</b>Exigências de cada contrato e cadastro de novos.</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/contratos/1</span></div><button class="zoomable" type="button" data-cap="Contrato com texto das cláusulas"><img src="img/contrato.png" width="1280" height="930" alt="Contrato CT-2026-014 com o texto das cláusulas" loading="lazy"></button></div>
+      <figcaption><b>Um contrato</b>Texto das cláusulas e o botão "Extrair exigências do texto com IA".</figcaption></figure>
+    <figure class="shot"><div class="janela"><div class="barra"><i></i><i></i><i></i><span>/auditoria</span></div><button class="zoomable" type="button" data-cap="Auditoria"><img src="img/auditoria.png" width="1280" height="940" alt="Auditoria com registro forçado" loading="lazy"></button></div>
+      <figcaption><b>Auditoria</b>Quem fez o quê. O registro "forçado" traz a violação e o motivo.</figcaption></figure>
+  </div>
+
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Endereço</th><th>O que tem</th></tr></thead>
+    <tbody>
+      <tr><td><code>/</code></td><td>Resumo, certificações vencendo em 30 dias, pedidos de ausência para aprovar, livres hoje</td></tr>
+      <tr><td><code>/tarefas</code></td><td>Todas as tarefas, com filtros e exportação CSV</td></tr>
+      <tr><td><code>/tarefas/{id}</code></td><td>Proposta, ranking, rejeitados e por quê, confirmados que deixaram de cumprir as regras, histórico</td></tr>
+      <tr><td><code>/tarefas/{id}/editar</code></td><td>Dados, período e vagas; revalida quem já está confirmado</td></tr>
+      <tr><td><code>/tarefas/{id}/os</code></td><td>Ordem de serviço para imprimir</td></tr>
+      <tr><td><code>/semana</code></td><td>Funcionários × dias, com horas da carga semanal</td></tr>
+      <tr><td><code>/funcionarios/{id}</code></td><td>Agenda, ausências, cadastro e link <code>.ics</code></td></tr>
+      <tr><td><code>/contratos</code></td><td>Exigências por contrato, cláusulas e extração com IA</td></tr>
+      <tr><td><code>/auditoria</code></td><td>Registro de ações, com filtro por tipo</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================================================= 5 -->
+<section id="bot" class="prose">
+  <h2 class="cap"><span class="n">5</span>Usar o bot do Telegram</h2>
+  <p>O bot atende dois públicos. <strong>Gestores</strong> (listados em <code>TELEGRAM_USUARIOS_PERMITIDOS</code>) conversam com o agente completo: criam serviços, registram ausências, trocam pessoas e consultam. <strong>Funcionários</strong> com o ID do Telegram no cadastro, em conversa privada, veem a própria agenda, os detalhes das próprias tarefas e avisam ausências, que vão para um gestor aprovar.</p>
+
+  <h3>Configurar uma vez</h3>
+  <ol class="passos">
+    <li><div>Crie uma chave do Gemini em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> num projeto <strong>sem faturamento</strong> e cole em <code>GEMINI_API_KEY</code>. Projeto com faturamento pré-pago sem saldo dá erro 402 em toda chamada. Para usar Claude, OpenAI ou Ollama, troque <code>LLM_PROVIDER</code> e preencha a chave dele (seção 9).</div></li>
+    <li><div>No Telegram, fale com o @BotFather, mande <code>/newbot</code> e cole o token em <code>TELEGRAM_BOT_TOKEN</code>.</div></li>
+    <li><div>Coloque os gestores em <code>TELEGRAM_USUARIOS_PERMITIDOS</code>, de preferência pelo ID numérico. Avisos e resumos só chegam a IDs numéricos.</div></li>
+    <li><div>Para a equipe usar o bot, coloque o ID de cada pessoa no cadastro dela. Ela precisa mandar <code>/start</code> uma vez para o bot poder escrever.</div></li>
+    <li><div>Rode <code>python -m scripts.verificar</code> e depois <code>python -m app.bot</code>.</div></li>
+  </ol>
+
+  <h3>Como é uma conversa</h3>
+  <div class="nota"><strong>Como ler</strong>Mensagens do bot com os dados de exemplo. A caixa tracejada mostra a intenção que o modelo devolveu para cada mensagem.</div>
+
+  <div data-tabs>
+    <div class="abas" role="tablist" aria-label="Exemplos de conversa">
+      <button role="tab" id="t-criar" aria-controls="p-criar" aria-selected="true" tabindex="0" type="button">Criar serviço</button>
+      <button role="tab" id="t-aus" aria-controls="p-aus" aria-selected="false" tabindex="-1" type="button">Ausência e substituto</button>
+      <button role="tab" id="t-cons" aria-controls="p-cons" aria-selected="false" tabindex="-1" type="button">Consultas</button>
+      <button role="tab" id="t-eq" aria-controls="p-eq" aria-selected="false" tabindex="-1" type="button">Lado da equipe</button>
+    </div>
+
+    <div class="painel-aba" role="tabpanel" id="p-criar" aria-labelledby="t-criar">
+      <div class="chat">
+        <div class="quem">Gestor ↔ bot</div>
+        <div class="msg eu">preciso de 2 técnicos com SPDA pra sexta em Betim, contrato CT-2026-021, urgente</div>
+        <div class="intencao"><b>CriarTarefa</b> · titulo "SPDA – Galpão Betim" · tipo campo · local Betim/MG · contrato CT-2026-021 · data_inicio 2026-11-27 · prioridade 5 · equipe [2× tecnico, SPDA:3]</div>
+        <div class="msg bot">Novo serviço: SPDA – Galpão Betim
+sex 27/11, 08:00–17:00 · campo · Betim/MG · prioridade 5
+
+2× tecnico (SPDA≥3)
+  ✔ Diego Rocha [50.3] SPDA nv3 · 8 anos de exp. · semana 73% ocupada com esta tarefa
+  ⚠ faltam 1
+    · Igor Santos (tem o perfil): passa da carga semanal na semana de 23/11/2026 (32h de 30h)
+    · Fernanda Costa: não tem a especialidade 'SPDA'
+    · Gabriel Nunes: não tem a especialidade 'SPDA'
+    · e mais 2 sem o perfil exigido
+Contrato CT-2026-021 exige de todos: NR35
+
+⚠ A equipe ficaria incompleta.<div class="teclas"><span class="tocado">Criar e confirmar equipe</span><span>Só criar o serviço</span><span>Descartar</span></div></div>
+        <div class="quem">o gestor toca em "Criar e confirmar equipe"</div>
+        <div class="msg bot">Serviço #6 criado.
+Equipe confirmada em #6: Diego Rocha. Status: parcial.
+⚠ Equipe incompleta. Quando houver gente, peça "completa a tarefa 6".</div>
+      </div>
+      <div class="lado">
+        <h4>O que aconteceu</h4>
+        <ul>
+          <li>O modelo tirou da frase o título, o tipo, o local, a data (sexta = 27/11), a prioridade 5 ("urgente") e a vaga.</li>
+          <li>O horário 08:00–17:00 veio do código, porque o gestor não disse a hora.</li>
+          <li>A prévia foi montada pelo motor sem gravar nada. Igor tem SPDA e mora em Betim, mas já está com 24h na tarefa #1 e faz 30h por semana.</li>
+          <li>A exigência de NR35 veio do contrato CT-2026-021.</li>
+          <li>Ao tocar no botão, o bot confirmou exatamente quem estava na prévia. Se Diego tivesse ficado indisponível no meio tempo, nada seria confirmado e uma prévia nova apareceria.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="painel-aba" role="tabpanel" id="p-aus" aria-labelledby="t-aus" hidden>
+      <div class="chat">
+        <div class="quem">Gestor ↔ bot</div>
+        <div class="msg eu">o Diego está de atestado terça</div>
+        <div class="intencao"><b>RegistrarAusencia</b> · funcionario_id 4 · data_inicio 2026-11-24 · motivo atestado</div>
+        <div class="msg bot">Registrar ausência de Diego Rocha (atestado): ter 24/11 (dia inteiro).
+Isso atinge:
+• #1 Manutenção preventiva – Subestação Norte · ter 24/11 08:00 → qui 26/11 17:00
+Depois de registrar, sugiro substitutos.<div class="teclas"><span class="tocado">Registrar</span><span>Descartar</span></div></div>
+        <div class="msg bot">Ausência de Diego Rocha registrada. Atinge 1 serviço(s); vamos ver os substitutos.</div>
+        <div class="msg bot">Diego Rocha está em #1 Manutenção preventiva – Subestação Norte
+ter 24/11 08:00 → qui 26/11 17:00 · campo · Contagem/MG
+
+Nenhum substituto viável.
+· Fernanda Costa (tem o perfil): indisponível (férias) de 23/11/2026 00:00 a 28/11/2026 00:00
+· Eduardo Alves: não tem a certificação 'NR35' (exigência do contrato CT-2026-014)
+· Helena Prado: certificação 'NR10' vence em 19/10/2026, antes do fim da tarefa (exigência do contrato CT-2026-014)<div class="teclas"><span>Só retirar Diego Rocha</span><span>Manter Diego Rocha</span></div></div>
+      </div>
+      <div class="lado">
+        <h4>O que aconteceu</h4>
+        <ul>
+          <li>Ausência sem hora vira dia inteiro (00:00 a 00:00 do dia seguinte).</li>
+          <li>Antes de gravar, o bot mostrou que a ausência atinge a tarefa #1.</li>
+          <li>Depois de registrar, o grafo seguiu direto para a escolha de substituto, uma pessoa por vez.</li>
+          <li>Neste caso ninguém pode entrar, e o bot diz por quê. Quando há gente viável, aparecem até 3 botões "Trocar por …" antes de "Só retirar" e "Manter".</li>
+          <li>"Manter" deixa Diego na tarefa, e a tela da tarefa passa a mostrar o aviso ⚠.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="painel-aba" role="tabpanel" id="p-cons" aria-labelledby="t-cons" hidden>
+      <div class="chat">
+        <div class="quem">Gestor ↔ bot</div>
+        <div class="msg eu">quem está livre quinta?</div>
+        <div class="intencao"><b>ConsultarDisponibilidade</b> · data_inicio 2026-11-26 · papel tecnico</div>
+        <div class="msg bot">(O pedido anterior, que esperava confirmação, foi descartado.)</div>
+        <div class="msg bot">Livres em qui 26/11, 08:00–17:00:
+• Eduardo Alves (tecnico) · semana 0% ocupada · 44h livres
+• Helena Prado (tecnico) · semana 9% ocupada · 40h livres</div>
+        <div class="msg eu">o que o CT-2026-014 diz sobre multa?</div>
+        <div class="intencao"><b>ConsultarContrato</b> · codigo CT-2026-014 · pergunta "multa atraso"</div>
+        <div class="msg bot">Contrato CT-2026-014 (Energia Norte S.A.)
+Exigências para a equipe: NR10, NR35
+Observações: EPI completo e APR antes de serviço em altura.
+
+Trechos do contrato sobre isso:
+« CLÁUSULA 8 – PRAZOS E PENALIDADES O atendimento emergencial deve começar em até 4 horas após o chamado. Cada atraso sujeita a CONTRATADA a multa de 2% do valor mensal do contrato, limitada a 10% no mês. »</div>
+      </div>
+      <div class="lado">
+        <h4>O que aconteceu</h4>
+        <ul>
+          <li>A escolha de substituto da aba anterior ainda esperava resposta. Uma mensagem nova descarta o pedido pendente e avisa.</li>
+          <li>Consultas respondem na hora, sem botão de confirmação.</li>
+          <li>"Livre" quer dizer: sem ausência, sem tarefa no mesmo horário e com horas sobrando no dia e na semana.</li>
+          <li>O modelo identificou o contrato e o assunto. O trecho foi encontrado por busca de palavras no texto cadastrado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="painel-aba" role="tabpanel" id="p-eq" aria-labelledby="t-eq" hidden>
+      <div class="chat">
+        <div class="quem">Bot → Diego (aviso)</div>
+        <div class="msg bot">Você foi escalado(a) como tecnico:
+#6 SPDA – Galpão Betim
+sex 27/11, 08:00–17:00 · campo · Betim/MG · contrato CT-2026-021<div class="teclas linha"><span>✔ Ciente</span><span class="tocado">⚠ Tive um imprevisto</span></div></div>
+        <div class="msg bot">Anotado. Avisei o gestor para encontrar um substituto.</div>
+        <div class="quem">Bot → gestores</div>
+        <div class="msg bot">⚠ Diego Rocha avisou um imprevisto em:
+#6 SPDA – Galpão Betim
+sex 27/11, 08:00–17:00 · campo · Betim/MG<div class="teclas"><span>Ver substitutos</span></div></div>
+        <div class="quem">Igor ↔ bot (modo equipe)</div>
+        <div class="msg eu">minha agenda</div>
+        <div class="msg bot">Sua agenda (próximos 14 dias):
+• #1 Manutenção preventiva – Subestação Norte · ter 24/11 08:00 → qui 26/11 17:00 · Contagem/MG</div>
+        <div class="msg eu">tenho consulta quarta</div>
+        <div class="intencao"><b>InformarAusencia</b> · data_inicio 2026-11-25 · motivo consulta médica</div>
+        <div class="msg bot">Pedido enviado ao gestor: ausência (consulta médica) qua 25/11 (dia inteiro).
+Você está escalado(a) em: #1 Manutenção preventiva – Subestação Norte. O gestor vai ver quem pode substituir.
+Você recebe a resposta por aqui.</div>
+        <div class="quem">Bot → gestores</div>
+        <div class="msg bot">📩 Igor Santos pediu ausência (consulta médica): qua 25/11 (dia inteiro).
+Atinge: #1 Manutenção preventiva – Subestação Norte<div class="teclas linha"><span>Aprovar</span><span>Recusar</span></div></div>
+      </div>
+      <div class="lado">
+        <h4>O que a equipe recebe e pode pedir</h4>
+        <ul>
+          <li>Aviso quando é escalada, removida ou a tarefa muda de horário. Os avisos de escala e de mudança de horário trazem <b>✔ Ciente</b> e <b>⚠ Tive um imprevisto</b>.</li>
+          <li>O imprevisto chega aos gestores com o botão "Ver substitutos", que abre a mesma escolha de substituto da aba 2.</li>
+          <li>No modo equipe, o modelo recebe só os dados da própria pessoa.</li>
+          <li>A ausência informada pela pessoa vira um pedido. Ao aprovar (no bot ou no painel), o bot já sugere substitutos para as tarefas atingidas, e a pessoa recebe a resposta.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>O que o gestor pode pedir</h3>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Mensagem</th><th>O que acontece</th></tr></thead>
+    <tbody>
+      <tr><td>"preciso de 2 técnicos com NR35 pra quarta em Betim, SPDA, urgente"</td><td>Monta a prévia da equipe e pede confirmação</td></tr>
+      <tr><td>"o Diego está de atestado amanhã"</td><td>Mostra o que a ausência atinge, registra e sugere substitutos</td></tr>
+      <tr><td>"tira o Igor da tarefa 1"</td><td>Até 3 substitutos com botão, só retirar ou manter</td></tr>
+      <tr><td>"coloca o Beto no lugar da Ana na tarefa 1"</td><td>Confere as regras de quem entra e pede confirmação; se ele viola alguma, oferece forçar</td></tr>
+      <tr><td>"coloca o Beto na tarefa 2", "põe a Helena mesmo sem NR10"</td><td>Coloca a pessoa numa vaga aberta; se ela viola alguma regra, lista as violações e oferece forçar, com motivo</td></tr>
+      <tr><td>"completa a equipe da tarefa 2"</td><td>Propõe quem falta e pede confirmação</td></tr>
+      <tr><td>"passa a tarefa 2 pra quinta", "conclui a tarefa 3"</td><td>Mostra quem deixaria de poder e pede confirmação</td></tr>
+      <tr><td>"quem está livre sexta?", "agenda da Ana", "tarefas em andamento"</td><td>Responde direto</td></tr>
+      <tr><td>"quais NRs vencem este mês?", "o que o CT-2026-014 diz sobre multa?"</td><td>Responde direto, citando o trecho do contrato</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Regras da conversa</h3>
+  <ul>
+    <li><strong>Tudo que grava pede confirmação.</strong> Vale tocar no botão ou responder "sim", "não" ou o número da opção.</li>
+    <li><strong>Um pedido por vez.</strong> Mandar outro pedido descarta o que esperava confirmação. <code>/cancelar</code> descarta de propósito.</li>
+    <li><strong>A equipe confirmada é a da prévia.</strong> Se alguém ficou indisponível antes do clique, nada é confirmado e o bot mostra uma prévia nova.</li>
+    <li><strong>Grupos.</strong> Num grupo de gestores, cada pessoa tem a própria conversa com o bot. O "sim" de um não confirma o pedido de outro, e só quem fez o pedido consegue apertar os botões dele.</li>
+    <li><strong>Forçar pelo bot.</strong> Se a pessoa pedida (incluir ou trocar) não cumpre alguma regra, como NR faltando ou vencida, jornada, descanso, ausência ou outra tarefa no horário, o bot lista cada violação e oferece "Forçar mesmo assim". Ao tocar, ele pede o motivo na próxima mensagem ("cancela" desiste) e grava com o motivo na alocação e na auditoria. "Sim" digitado nunca força, e uma violação que não estava na prévia bloqueia a gravação.</li>
+    <li><strong>Áudio.</strong> Com o Gemini, mensagens de voz de até 2 minutos são interpretadas direto, na mesma chamada. Com outro provedor, o bot pede a mensagem em texto.</li>
+    <li><strong>Sem permissão.</strong> Quem não está liberado recebe o próprio ID do Telegram, para pedir acesso.</li>
+  </ul>
+
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Comando</th><th>Quem pode</th><th>O que faz</th></tr></thead>
+    <tbody>
+      <tr><td><code>/start</code>, <code>/ajuda</code></td><td>gestores e equipe</td><td>Mostra o que o bot sabe fazer para aquela pessoa</td></tr>
+      <tr><td><code>/id</code></td><td>todos</td><td>Mostra o ID numérico do Telegram</td></tr>
+      <tr><td><code>/agenda</code></td><td>equipe</td><td>Agenda dos próximos 14 dias</td></tr>
+      <tr><td><code>/vencimentos</code></td><td>gestores</td><td>Certificações vencidas ou vencendo em 30 dias</td></tr>
+      <tr><td><code>/cancelar</code></td><td>gestores</td><td>Descarta o pedido que esperava confirmação</td></tr>
+    </tbody>
+  </table></div>
+  <p>Toda segunda, a partir das 08h, os gestores recebem o resumo de certificações vencidas ou vencendo em 30 dias e dos pedidos de ausência parados. O envio é marcado na auditoria para não repetir na mesma semana.</p>
+</section>
+
+<!-- ======================================================= 6 -->
+<section id="api" class="prose">
+  <h2 class="cap"><span class="n">6</span>Usar a API</h2>
+  <p>A API REST fica em <code>/api</code> e a documentação interativa em <code>/docs</code> (Swagger). Ela usa os mesmos serviços do painel, então as regras e a auditoria são as mesmas. Com <code>API_TOKEN</code> definido, mande <code>Authorization: Bearer &lt;token&gt;</code>; no Swagger, use o botão <b>Authorize</b>.</p>
+  <figure class="shot corte" style="--h: 520px">
+    <div class="janela"><div class="barra"><i></i><i></i><i></i><span>localhost:8000/docs</span></div>
+      <button class="zoomable" type="button" data-cap="Documentação da API"><img src="img/api-docs.png" width="1280" height="1500" alt="Swagger da API do Alocador" loading="lazy"><span class="ampliar">Ver inteira</span></button>
+    </div>
+    <figcaption>A documentação gerada pelo FastAPI, agrupada por funcionários, disponibilidade, tarefas, alocação, contratos e auditoria.</figcaption>
+  </figure>
+
+  <h3>Exemplo: criar uma tarefa e pedir a proposta</h3>
+  <div class="grid2">
+    <div class="code" style="margin:0"><div class="rot">POST /api/tarefas<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "titulo": "Revisão do projeto de automação – Linha 3",
+  "tipo": "interna",
+  "local": "Escritório",
+  "inicio": "2026-11-23T09:00",
+  "fim": "2026-11-23T12:00",
+  "prioridade": 2,
+  "requisitos": [{
+    "papel": "engenheiro",
+    "quantidade": 1,
+    "especialidades": [
+      {"nome": "Automação", "nivel_min": 3}
+    ]
+  }]
+}</code></pre></div>
+    <div class="code" style="margin:0"><div class="rot">POST /api/tarefas/3/propor · resposta resumida<button class="copy" type="button">Copiar</button></div><pre><code>{
+  "tarefa_id": 3,
+  "completa": true,
+  "vagas": [{
+    "papel": "engenheiro",
+    "faltam": 0,
+    "escolhidos": [{
+      "nome": "Bruno Lima",
+      "score": 74.3,
+      "resumo": "Automação nv4 · 6 anos de exp. · semana 7% ocupada com esta tarefa"
+    }],
+    "rejeitados": [
+      {"nome": "Carla Mendes",
+       "motivos": ["não tem a especialidade 'Automação'"],
+       "perfil_ok": false}
+    ]
+  }]
+}</code></pre></div>
+  </div>
+  <p>Depois, <code>POST /api/tarefas/3/confirmar</code> sem corpo confirma a proposta. Com corpo, dá para escolher pessoas à mão e forçar: <code>{"escolhas": [{"requisito_id": 5, "funcionario_id": 2}], "forcar": true, "motivo": "…"}</code>. Se houver violação sem <code>forcar</code>, a resposta é 409 com a lista de problemas por pessoa. Datas com fuso (<code>…Z</code> ou <code>-03:00</code>) são convertidas para o horário local.</p>
+
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Método</th><th>Rota</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/funcionarios</code></td><td>Cadastrar funcionário</td></tr>
+      <tr><td>PUT</td><td><code>/api/funcionarios/{id}</code></td><td>Editar (com <code>ativo</code> para reativar ou desativar)</td></tr>
+      <tr><td>DELETE</td><td><code>/api/funcionarios/{id}?forcar=</code></td><td>Desativar; 409 se ainda estiver confirmado em tarefas futuras</td></tr>
+      <tr><td>POST</td><td><code>/api/funcionarios/{id}/reativar</code></td><td>Reativar</td></tr>
+      <tr><td>GET</td><td><code>/api/funcionarios/disponiveis?inicio=&amp;fim=&amp;papel=</code></td><td>Quem está livre</td></tr>
+      <tr><td>POST</td><td><code>/api/funcionarios/{id}/indisponibilidades</code></td><td>Registrar ausência (devolve as tarefas afetadas)</td></tr>
+      <tr><td>GET</td><td><code>/api/funcionarios/{id}/agenda?inicio=&amp;fim=</code></td><td>Agenda</td></tr>
+      <tr><td>GET</td><td><code>/api/certificacoes/vencimentos?dias=30</code></td><td>Certificações vencidas ou vencendo</td></tr>
+      <tr><td>GET</td><td><code>/api/tarefas?status=&amp;de=&amp;ate=&amp;tipo=&amp;contrato=</code></td><td>Listar com filtros (<code>status=ativas</code> também vale)</td></tr>
+      <tr><td>POST</td><td><code>/api/tarefas</code></td><td>Criar tarefa com vagas</td></tr>
+      <tr><td>PUT</td><td><code>/api/tarefas/{id}</code></td><td>Editar dados e vagas (devolve quem passou a violar regras)</td></tr>
+      <tr><td>POST</td><td><code>/api/tarefas/{id}/remarcar</code></td><td>Mudar o período (idem)</td></tr>
+      <tr><td>POST</td><td><code>/api/tarefas/{id}/propor</code></td><td>Gerar proposta: escolhidos, alternativas, rejeitados e motivos</td></tr>
+      <tr><td>POST</td><td><code>/api/tarefas/{id}/confirmar</code></td><td>Confirmar proposta ou escolhas manuais (<code>forcar</code> + <code>motivo</code>)</td></tr>
+      <tr><td>POST</td><td><code>/api/tarefas/{id}/concluir</code>, <code>/cancelar</code></td><td>Encerrar a tarefa</td></tr>
+      <tr><td>DELETE</td><td><code>/api/alocacoes/{id}</code></td><td>Cancelar uma alocação (409 em tarefa encerrada)</td></tr>
+      <tr><td>GET/POST/PUT/DELETE</td><td><code>/api/contratos[/{codigo}]</code></td><td>Contratos e suas exigências</td></tr>
+      <tr><td>GET</td><td><code>/api/auditoria?acao=forcar</code></td><td>Registro de ações</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================================================= 7 -->
+<section id="arquitetura" class="prose">
+  <h2 class="cap"><span class="n">7</span>Arquitetura</h2>
+  <p>Painel, API e bot são três entradas para o mesmo núcleo: leem o pedido, chamam <code>services.py</code> e mostram o resultado. As regras de negócio ficam em <code>services.py</code>; as de alocação, em <code>allocation.py</code>, que não depende de web, Telegram nem IA.</p>
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 1040 580" role="img" aria-label="Arquitetura: painel e API rodam num processo uvicorn; bot e agente rodam em outro processo. Os dois importam services.py e allocation.py e gravam no mesmo banco. O bot fala com os servidores do Telegram por long polling; o agente faz uma chamada ao modelo de IA por mensagem e guarda as conversas em agente.db.">
+        <defs>
+          <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <!-- quem usa -->
+        <rect class="ext" x="50" y="20" width="170" height="48" rx="24"/>
+        <text x="135" y="49" text-anchor="middle" class="t">Gestor no navegador</text>
+        <rect class="ext" x="240" y="20" width="170" height="48" rx="24"/>
+        <text x="325" y="49" text-anchor="middle" class="t">Integração via HTTP</text>
+        <rect class="ext" x="480" y="20" width="200" height="48" rx="24"/>
+        <text x="580" y="49" text-anchor="middle" class="t">Gestores e equipe</text>
+
+        <!-- serviços externos -->
+        <rect class="ext" x="480" y="105" width="200" height="48" rx="8"/>
+        <text x="580" y="134" text-anchor="middle" class="t">Servidores do Telegram</text>
+        <rect class="ia" x="705" y="105" width="200" height="48" rx="8"/>
+        <text x="805" y="126" text-anchor="middle" class="t">Modelo de IA (Gemini)</text>
+        <text x="805" y="143" text-anchor="middle" class="s">interpreta pedidos · lê contratos</text>
+
+        <!-- processo 1 -->
+        <rect class="frame" x="30" y="185" width="400" height="150" rx="12"/>
+        <rect class="box" x="50" y="205" width="170" height="92" rx="8"/>
+        <text x="135" y="245" text-anchor="middle" class="t">Painel web</text>
+        <text x="135" y="265" text-anchor="middle" class="s">web.py + templates</text>
+        <rect class="box" x="240" y="205" width="170" height="92" rx="8"/>
+        <text x="325" y="245" text-anchor="middle" class="t">API REST /api</text>
+        <text x="325" y="265" text-anchor="middle" class="s">api.py · Swagger em /docs</text>
+        <text x="46" y="323" class="s">Processo 1 · uvicorn app.main:app · porta 8000</text>
+
+        <!-- processo 2 -->
+        <rect class="frame" x="460" y="185" width="465" height="150" rx="12"/>
+        <rect class="box" x="480" y="205" width="200" height="92" rx="8"/>
+        <text x="580" y="245" text-anchor="middle" class="t">Bot do Telegram</text>
+        <text x="580" y="265" text-anchor="middle" class="s">bot.py · avisos a cada 15 s</text>
+        <rect class="box" x="705" y="205" width="200" height="92" rx="8"/>
+        <text x="805" y="245" text-anchor="middle" class="t">Agente</text>
+        <text x="805" y="265" text-anchor="middle" class="s">LangGraph · grafo.py</text>
+        <text x="476" y="323" class="s">Processo 2 · python -m app.bot</text>
+        <rect class="box" x="940" y="228" width="90" height="46" rx="8"/>
+        <text x="985" y="248" text-anchor="middle" class="t" style="font-size:13px">agente.db</text>
+        <text x="985" y="264" text-anchor="middle" class="s">conversas</text>
+
+        <!-- setas de cima -->
+        <line class="ln" x1="135" y1="68" x2="135" y2="203" marker-end="url(#ar-a)"/>
+        <text x="143" y="132" class="lbl">páginas e formulários</text>
+        <line class="ln" x1="325" y1="68" x2="325" y2="203" marker-end="url(#ar-a)"/>
+        <text x="333" y="132" class="lbl">JSON · token Bearer</text>
+        <line class="ln" x1="580" y1="70" x2="580" y2="103" marker-start="url(#ar-a)" marker-end="url(#ar-a)"/>
+        <text x="590" y="91" class="lbl">mensagens, voz, botões</text>
+        <line class="ln" x1="580" y1="155" x2="580" y2="203" marker-start="url(#ar-a)" marker-end="url(#ar-a)"/>
+        <text x="590" y="175" class="lbl">long polling</text>
+        <line class="ln" x1="682" y1="251" x2="703" y2="251" marker-end="url(#ar-a)"/>
+        <line class="ln" x1="805" y1="203" x2="805" y2="155" marker-end="url(#ar-a)"/>
+        <text x="815" y="175" class="lbl">1 chamada por mensagem</text>
+        <line class="ln" x1="907" y1="251" x2="938" y2="251" marker-end="url(#ar-a)"/>
+
+        <!-- núcleo -->
+        <line class="ln" x1="230" y1="335" x2="230" y2="383" marker-end="url(#ar-a)"/>
+        <text x="238" y="364" class="lbl">importa</text>
+        <line class="ln" x1="692" y1="335" x2="692" y2="383" marker-end="url(#ar-a)"/>
+        <text x="700" y="364" class="lbl">importa</text>
+        <rect class="core" x="30" y="385" width="1000" height="70" rx="10"/>
+        <text x="530" y="414" text-anchor="middle" class="t">services.py · regras de negócio, auditoria e caixa de avisos</text>
+        <text x="530" y="438" text-anchor="middle">allocation.py · motor sem IA: regras, pontuação e fluxo de custo mínimo</text>
+        <line class="ln" x1="530" y1="455" x2="530" y2="503" marker-end="url(#ar-a)"/>
+        <text x="538" y="484" class="lbl">SQLAlchemy</text>
+        <rect class="box" x="330" y="505" width="400" height="62" rx="10"/>
+        <text x="530" y="531" text-anchor="middle" class="t">Banco principal</text>
+        <text x="530" y="551" text-anchor="middle" class="s">SQLite (alocacao.db, modo WAL) ou PostgreSQL 16</text>
+      </svg>
+    </div>
+    <figcaption><b>Dois processos, um núcleo, um banco.</b> O painel e o bot não conversam entre si: os dois importam o mesmo código de regras e gravam no mesmo banco. Quando o painel confirma alguém, ele só grava um aviso na tabela de notificações; o bot lê essa tabela a cada 15 segundos e manda a mensagem. O bot usa long polling, então não precisa de domínio, IP público nem porta aberta.</figcaption>
+  </figure>
+
+  <h3>Mapa do código</h3>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Arquivo</th><th>Responsabilidade</th></tr></thead>
+    <tbody>
+      <tr class="grupo"><td colspan="2">Núcleo</td></tr>
+      <tr><td><code>app/allocation.py</code></td><td>Motor: regras rígidas, horas por dia, pontuação, fluxo de custo mínimo, disponibilidade. Puro, sem IA.</td></tr>
+      <tr><td><code>app/services.py</code></td><td>Regras de negócio: criar, propor, confirmar, substituir, editar, remarcar, encerrar, auditar, avisar, pedidos de ausência, grade da semana.</td></tr>
+      <tr><td><code>app/models.py</code></td><td>Tabelas (SQLAlchemy).</td></tr>
+      <tr><td><code>app/schemas.py</code></td><td>Entrada e saída validadas (Pydantic), inclusive a conversão de datas com fuso.</td></tr>
+      <tr><td><code>app/contratos.py</code></td><td>Busca de cláusulas e extração de exigências com IA.</td></tr>
+      <tr class="grupo"><td colspan="2">Entradas</td></tr>
+      <tr><td><code>app/main.py</code></td><td>Aplicação FastAPI, middleware de login e CSRF, tratamento de erros, <code>/saude</code>.</td></tr>
+      <tr><td><code>app/web.py</code> + <code>app/templates/</code></td><td>Painel web (Jinja).</td></tr>
+      <tr><td><code>app/api.py</code></td><td>API REST em <code>/api</code>, com o token opcional.</td></tr>
+      <tr><td><code>app/bot.py</code></td><td>Bot do Telegram, botões, ciclo de avisos, pedidos de ausência e resumo semanal.</td></tr>
+      <tr class="grupo"><td colspan="2">Agente</td></tr>
+      <tr><td><code>app/agente/grafo.py</code></td><td>Grafo LangGraph, aprovações e a classe <code>Agente</code> (fila por conversa).</td></tr>
+      <tr><td><code>app/agente/intencoes.py</code></td><td>Intenções que o modelo pode escolher e a conversão de datas e horas.</td></tr>
+      <tr><td><code>app/agente/llm.py</code></td><td>Prompt, contexto enviado ao modelo e chamada a ele.</td></tr>
+      <tr><td><code>app/provedores.py</code></td><td>Escolha do modelo de IA (Gemini, Claude, OpenAI ou Ollama) e mensagens de erro de cada provedor.</td></tr>
+      <tr><td><code>app/agente/equipe.py</code></td><td>Modo equipe (o próprio funcionário falando).</td></tr>
+      <tr><td><code>app/agente/formatar.py</code></td><td>Textos das respostas, montados em código.</td></tr>
+      <tr><td><code>app/agente/cli.py</code></td><td>Conversa no terminal.</td></tr>
+      <tr class="grupo"><td colspan="2">Apoio</td></tr>
+      <tr><td><code>app/config.py</code></td><td>Lê o ambiente e o <code>.env</code>.</td></tr>
+      <tr><td><code>app/db.py</code></td><td>Conexão, ajustes do SQLite e criação das tabelas.</td></tr>
+      <tr><td><code>app/relogio.py</code></td><td>"Agora" e "hoje" no fuso do negócio.</td></tr>
+      <tr><td><code>app/seguranca.py</code></td><td>Cookies assinados, senha e tokens de calendário.</td></tr>
+      <tr><td><code>app/texto.py</code>, <code>app/parsing.py</code></td><td>Comparação de nomes sem acento, cidades, formatação de períodos e leitura de listas digitadas.</td></tr>
+      <tr><td><code>scripts/seed.py</code>, <code>scripts/verificar.py</code></td><td>Dados de exemplo e conferência do <code>.env</code>.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================================================= 8 -->
+<section id="motor" class="prose">
+  <h2 class="cap"><span class="n">8</span>Motor de alocação</h2>
+  <p>O motor (<code>allocation.py</code>) monta a equipe sem IA, da mesma forma no painel, na API e no bot. Para cada vaga, ele segue três passos:</p>
+  <ol class="passos">
+    <li><div><strong>Regras rígidas.</strong> Quem falha em qualquer uma é rejeitado, com o motivo escrito.</div></li>
+    <li><div><strong>Pontuação de 0 a 100</strong> para quem passou.</div></li>
+    <li><div><strong>Escolha da equipe</strong> por fluxo de custo mínimo: primeiro o maior número de vagas preenchidas; entre as equipes que conseguem isso, a de maior pontuação somada.</div></li>
+  </ol>
+
+  <h3>1. Regras rígidas</h3>
+  <p>As regras se dividem em dois grupos. Quem falha só nas de agenda aparece como "tem o perfil": é alguém que serviria se estivesse livre.</p>
+  <div class="grid2">
+    <div class="item"><h4>Perfil</h4><p>Cadastro ativo · mesmo papel da vaga · cada especialidade no nível mínimo · certificações válidas até o fim da tarefa (as da vaga mais as do contrato) · experiência mínima (a maior entre a da vaga e a do contrato) · disponível para viagem, se a tarefa é de campo.</p></div>
+    <div class="item"><h4>Agenda</h4><p>Sem ausência no período · sem outra tarefa confirmada no mesmo horário · pelo menos 11h de descanso entre jornadas (CLT art. 66) · 60 min de deslocamento entre serviços de campo em cidades diferentes · dentro da jornada diária · dentro da carga semanal.</p></div>
+  </div>
+
+  <h3>2. Pontuação</h3>
+  <p>Cada critério vira um número entre 0 e 1, multiplicado pelo seu peso. A soma dos pesos é 100.</p>
+  <div class="pesos" role="img" aria-label="Pesos da pontuação: aderência 40, folga de carga 25, desejáveis 15, experiência 15, proximidade 5">
+    <span class="s1" style="flex:40" data-tip="Aderência às especialidades exigidas · 40 pontos"></span>
+    <span class="s2" style="flex:25" data-tip="Folga de carga na semana · 25 pontos"></span>
+    <span class="s3" style="flex:15" data-tip="Especialidades desejáveis · 15 pontos"></span>
+    <span class="s4" style="flex:15" data-tip="Experiência · 15 pontos"></span>
+    <span class="s5" style="flex:5" data-tip="Proximidade · 5 pontos"></span>
+  </div>
+  <div class="legenda">
+    <span><i class="s1"></i>Aderência · 40</span>
+    <span><i class="s2"></i>Folga de carga · 25</span>
+    <span><i class="s3"></i>Desejáveis · 15</span>
+    <span><i class="s4"></i>Experiência · 15</span>
+    <span><i class="s5"></i>Proximidade · 5</span>
+  </div>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Critério</th><th class="num">Peso</th><th>Como vira número</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Aderência</td><td class="num">40</td><td>Média de nível ÷ 5 nas especialidades exigidas. Sem exigência, 0,5.</td></tr>
+      <tr><td class="k">Folga de carga</td><td class="num">25</td><td>1 − ocupação da semana já contando esta tarefa. Espalha o trabalho pela equipe.</td></tr>
+      <tr><td class="k">Desejáveis</td><td class="num">15</td><td>Mesma conta da aderência, nas especialidades desejáveis. Sem desejáveis, 0,5.</td></tr>
+      <tr><td class="k">Experiência</td><td class="num">15</td><td>Anos ÷ 10, no máximo 1. Dez anos ou mais valem o peso cheio.</td></tr>
+      <tr><td class="k">Proximidade</td><td class="num">5</td><td>Em campo, 1 se a cidade base da pessoa é a cidade do local, senão 0. Em tarefa interna, 0,5 para todos.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="ranking">
+    <div class="cab">
+      <h4>Exemplo real: 2× técnico, Elétrica ≥ 3, NR10, desejável Subestações</h4>
+      <span class="small muted">campo em Belo Horizonte/MG · qui 03/12/2026, 08:00–17:00</span>
+    </div>
+    <div class="linha-r"><div class="nome">Fernanda Costa <small><span class="tag ok">escolhida</span></small></div>
+      <div class="trilho"><div class="pilha" style="width:92.5%"><span class="s1" style="flex:40" data-tip="Fernanda · aderência 40,0 de 40 (Elétrica nv5)"></span><span class="s2" style="flex:20.5" data-tip="Fernanda · folga 20,5 de 25 (semana 18% ocupada)"></span><span class="s3" style="flex:12" data-tip="Fernanda · desejáveis 12,0 de 15 (Subestações nv4)"></span><span class="s4" style="flex:15" data-tip="Fernanda · experiência 15,0 de 15 (11 anos)"></span><span class="s5" style="flex:5" data-tip="Fernanda · proximidade 5 de 5 (base em Belo Horizonte)"></span></div></div>
+      <div class="total">92,5</div></div>
+    <div class="linha-r"><div class="nome">Diego Rocha <small><span class="tag ok">escolhido</span></small></div>
+      <div class="trilho"><div class="pilha" style="width:64.5%"><span class="s1" style="flex:32" data-tip="Diego · aderência 32,0 de 40 (Elétrica nv4)"></span><span class="s2" style="flex:20.5" data-tip="Diego · folga 20,5 de 25"></span><span class="s4" style="flex:12" data-tip="Diego · experiência 12,0 de 15 (8 anos)"></span></div></div>
+      <div class="total">64,5</div></div>
+    <div class="linha-r"><div class="nome">Igor Santos <small><span class="tag alt">alternativa</span></small></div>
+      <div class="trilho"><div class="pilha" style="width:60.8%"><span class="s1" style="flex:32" data-tip="Igor · aderência 32,0 de 40 (Elétrica nv4)"></span><span class="s2" style="flex:18.3" data-tip="Igor · folga 18,3 de 25 (faz 30h por semana)"></span><span class="s4" style="flex:10.5" data-tip="Igor · experiência 10,5 de 15 (7 anos)"></span></div></div>
+      <div class="total">60,8</div></div>
+    <div class="linha-r"><div class="nome">Eduardo Alves <small><span class="tag alt">alternativa</span></small></div>
+      <div class="trilho"><div class="pilha" style="width:55.5%"><span class="s1" style="flex:24" data-tip="Eduardo · aderência 24,0 de 40 (Elétrica nv3)"></span><span class="s2" style="flex:20.5" data-tip="Eduardo · folga 20,5 de 25"></span><span class="s4" style="flex:6" data-tip="Eduardo · experiência 6,0 de 15 (4 anos)"></span><span class="s5" style="flex:5" data-tip="Eduardo · proximidade 5 de 5 (base em Belo Horizonte)"></span></div></div>
+      <div class="total">55,5</div></div>
+    <div class="linha-r"><div class="nome">Helena Prado <small><span class="tag bad">rejeitada</span></small></div>
+      <div class="rej"><b>✕</b> certificação 'NR10' vence em 19/10/2026, antes do fim da tarefa</div><div class="total muted">—</div></div>
+    <div class="linha-r"><div class="nome">Gabriel Nunes <small><span class="tag bad">rejeitado</span></small></div>
+      <div class="rej"><b>✕</b> 'Elétrica' nível 2 (mínimo 3)</div><div class="total muted">—</div></div>
+    <div class="escala"><span></span><div><span>0</span><span>50</span><span>100</span></div><span></span></div>
+    <details class="mais"><summary>Ver os números em tabela</summary>
+      <div class="tabela compacta" style="margin-top:8px"><table>
+        <thead><tr><th>Pessoa</th><th class="num">Aderência</th><th class="num">Folga</th><th class="num">Desejáveis</th><th class="num">Experiência</th><th class="num">Proximidade</th><th class="num">Total</th></tr></thead>
+        <tbody>
+          <tr><td>Fernanda Costa</td><td class="num">40,0</td><td class="num">20,5</td><td class="num">12,0</td><td class="num">15,0</td><td class="num">5,0</td><td class="num"><b>92,5</b></td></tr>
+          <tr><td>Diego Rocha</td><td class="num">32,0</td><td class="num">20,5</td><td class="num">0,0</td><td class="num">12,0</td><td class="num">0,0</td><td class="num"><b>64,5</b></td></tr>
+          <tr><td>Igor Santos</td><td class="num">32,0</td><td class="num">18,3</td><td class="num">0,0</td><td class="num">10,5</td><td class="num">0,0</td><td class="num"><b>60,8</b></td></tr>
+          <tr><td>Eduardo Alves</td><td class="num">24,0</td><td class="num">20,5</td><td class="num">0,0</td><td class="num">6,0</td><td class="num">5,0</td><td class="num"><b>55,5</b></td></tr>
+        </tbody>
+      </table></div>
+    </details>
+  </div>
+  <p>Helena teria 57 pontos, mais que Eduardo, mas a NR10 vencida a elimina antes da pontuação: <strong>regra rígida não se compensa com pontos</strong>. Igor perde folga porque faz 30h por semana, então as mesmas 8h pesam mais na semana dele.</p>
+
+  <h3>3. Escolha: por que fluxo de custo mínimo</h3>
+  <p>Escolher o melhor de cada vaga, uma de cada vez, pode gastar uma pessoa versátil numa vaga fácil e deixar a difícil vazia.</p>
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 980 290" role="img" aria-label="Comparação: a escolha gulosa coloca Ana na vaga B e deixa a vaga A vazia; o fluxo de custo mínimo coloca Ana na vaga A e Beto na B, preenchendo as duas com 155 pontos.">
+        <!-- painel esquerdo: guloso -->
+        <text x="20" y="26" class="t" style="font-size:15px">Escolha gulosa, vaga por vaga</text>
+        <line class="fraca" x1="180" y1="82" x2="290" y2="82"/>
+        <line class="escolha" x1="180" y1="177" x2="290" y2="82"/>
+        <line class="fraca" x1="180" y1="177" x2="290" y2="177"/>
+        <text x="235" y="75" text-anchor="middle" class="lbl">85</text>
+        <text x="218" y="126" text-anchor="middle" class="lbl acct">90</text>
+        <text x="235" y="170" text-anchor="middle" class="lbl">70</text>
+        <rect class="badbox" x="20" y="55" width="160" height="54" rx="8"/>
+        <text x="34" y="78" class="t">Vaga A</text><text x="34" y="97" class="s">Elétrica + Automação</text>
+        <rect class="box" x="20" y="150" width="160" height="54" rx="8"/>
+        <text x="34" y="173" class="t">Vaga B</text><text x="34" y="192" class="s">só Elétrica</text>
+        <rect class="box" x="290" y="55" width="160" height="54" rx="8"/>
+        <text x="304" y="78" class="t">Ana</text><text x="304" y="97" class="s">serve nas duas vagas</text>
+        <rect class="box" x="290" y="150" width="160" height="54" rx="8"/>
+        <text x="304" y="173" class="t">Beto</text><text x="304" y="192" class="s">só serve na B</text>
+        <text x="20" y="242" class="s">Pega o maior número primeiro: Ana (90) na vaga B.</text>
+        <text x="20" y="266" class="badt">1 de 2 vagas preenchidas · vaga A fica vazia</text>
+
+        <line class="fraca" x1="490" y1="10" x2="490" y2="276" style="stroke-dasharray:2 6"/>
+
+        <!-- painel direito: fluxo -->
+        <text x="530" y="26" class="t" style="font-size:15px">Fluxo de custo mínimo (o Alocador)</text>
+        <line class="escolha-ok" x1="690" y1="82" x2="800" y2="82"/>
+        <line class="fraca" x1="690" y1="177" x2="800" y2="82"/>
+        <line class="escolha-ok" x1="690" y1="177" x2="800" y2="177"/>
+        <text x="745" y="75" text-anchor="middle" class="lbl okt">85</text>
+        <text x="728" y="126" text-anchor="middle" class="lbl">90</text>
+        <text x="745" y="170" text-anchor="middle" class="lbl okt">70</text>
+        <rect class="box" x="530" y="55" width="160" height="54" rx="8"/>
+        <text x="544" y="78" class="t">Vaga A</text><text x="544" y="97" class="s">Elétrica + Automação</text>
+        <rect class="box" x="530" y="150" width="160" height="54" rx="8"/>
+        <text x="544" y="173" class="t">Vaga B</text><text x="544" y="192" class="s">só Elétrica</text>
+        <rect class="box" x="800" y="55" width="160" height="54" rx="8"/>
+        <text x="814" y="78" class="t">Ana</text><text x="814" y="97" class="s">serve nas duas vagas</text>
+        <rect class="box" x="800" y="150" width="160" height="54" rx="8"/>
+        <text x="814" y="173" class="t">Beto</text><text x="814" y="192" class="s">só serve na B</text>
+        <text x="530" y="242" class="s">Olha a equipe toda: Ana na A, Beto na B.</text>
+        <text x="530" y="266" class="okt">2 de 2 vagas preenchidas · 155 pontos</text>
+      </svg>
+    </div>
+    <figcaption><b>A mesma situação, duas estratégias.</b> Os números nas linhas são a pontuação de cada pessoa em cada vaga. A estratégia gulosa pega o maior número que vê (Ana, 90, na vaga B) e fica sem ninguém para a vaga A. O fluxo olha as combinações possíveis: primeiro garante o maior número de vagas preenchidas e, entre as equipes que conseguem isso, fica com a de maior soma.</figcaption>
+  </figure>
+  <p>O motor monta uma rede e procura o fluxo de custo mínimo (<code>_fluxo_custo_minimo</code>, com caminhos aumentantes mais curtos pelo algoritmo SPFA, em Python puro). Para equipes de dezenas de pessoas roda em milissegundos.</p>
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 980 150" role="img" aria-label="Rede do fluxo: fonte liga às vagas com capacidade igual às vagas que faltam; vagas ligam às pessoas viáveis com capacidade 1 e custo igual a menos a pontuação vezes 10; pessoas ligam ao sumidouro com capacidade 1.">
+        <defs>
+          <marker id="fl-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <line class="ln" x1="70" y1="54" x2="198" y2="37" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="70" y1="66" x2="198" y2="87" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="320" y1="34" x2="518" y2="24" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="320" y1="40" x2="518" y2="100" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="320" y1="84" x2="518" y2="28" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="320" y1="90" x2="518" y2="64" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="640" y1="24" x2="878" y2="54" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="640" y1="64" x2="878" y2="61" marker-end="url(#fl-a)"/>
+        <line class="ln" x1="640" y1="104" x2="878" y2="68" marker-end="url(#fl-a)"/>
+        <circle class="box" cx="50" cy="60" r="20"/><text x="50" y="98" text-anchor="middle" class="s">fonte</text>
+        <rect class="box" x="200" y="20" width="120" height="32" rx="6"/><text x="260" y="41" text-anchor="middle" class="t" style="font-size:13px">Vaga A</text>
+        <rect class="box" x="200" y="72" width="120" height="32" rx="6"/><text x="260" y="93" text-anchor="middle" class="t" style="font-size:13px">Vaga B</text>
+        <rect class="box" x="520" y="10" width="120" height="28" rx="6"/><text x="580" y="29" text-anchor="middle">Ana</text>
+        <rect class="box" x="520" y="50" width="120" height="28" rx="6"/><text x="580" y="69" text-anchor="middle">Beto</text>
+        <rect class="box" x="520" y="90" width="120" height="28" rx="6"/><text x="580" y="109" text-anchor="middle">Carla</text>
+        <circle class="box" cx="900" cy="60" r="20"/><text x="900" y="98" text-anchor="middle" class="s">sumidouro</text>
+        <text x="135" y="140" text-anchor="middle" class="s">capacidade = vagas que faltam</text>
+        <text x="420" y="140" text-anchor="middle" class="s">capacidade 1 · custo = −pontos × 10</text>
+        <text x="760" y="140" text-anchor="middle" class="s">capacidade 1: cada pessoa uma vez</text>
+      </svg>
+    </div>
+    <figcaption><b>A rede que o motor monta.</b> Cada caminho da fonte ao sumidouro leva uma pessoa a uma vaga. Como o custo é a pontuação negativa, o caminho mais barato é o de mais pontos, e o algoritmo vai aumentando o fluxo até não caber mais ninguém. Quem é viável em duas vagas e ficou com uma aparece na outra como "escolhido(a) para outra vaga desta tarefa".</figcaption>
+  </figure>
+
+  <h3>Remanejamento por prioridade</h3>
+  <p>Em tarefas de prioridade 4 ou 5, o motor faz uma pergunta a mais para quem tem o perfil e só falhou por agenda: se esta pessoa saísse das tarefas de prioridade pelo menos 2 níveis menor, ela passaria? Se sim, ela aparece como <strong>candidata a remanejamento</strong>, com a tarefa que precisaria ser liberada.</p>
+
+  <h3>Como as horas são contadas</h3>
+  <p>A conta de horas alimenta a jornada diária, a carga semanal e a folga da pontuação (<code>horas_por_dia</code>).</p>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Tarefa</th><th>Conta como</th><th>Por quê</th></tr></thead>
+    <tbody>
+      <tr><td>seg 08:00–17:00</td><td>8h na segunda</td><td>Um dia só: a duração, limitada a 8h (descontando o almoço).</td></tr>
+      <tr><td>seg 09:00–12:00</td><td>3h</td><td>Duração real.</td></tr>
+      <tr><td>ter a qui, 08:00–17:00</td><td>8h + 8h + 8h</td><td>Vários dias: em cada dia, o trecho dentro da jornada 08h–17h, até 8h.</td></tr>
+      <tr><td>seg 15:00 → ter 11:00</td><td>2h + 3h</td><td>Saída às 15h conta só até 17h; volta às 11h conta de 08h a 11h.</td></tr>
+      <tr><td>ter 22:00 → qua 02:00</td><td>2h + 2h</td><td>Plantão todo fora da jornada conta pela duração real, não como dois dias cheios.</td></tr>
+      <tr><td>sex 18:00 → dom 17:00</td><td>6h + 8h + 8h</td><td>Fim de semana entra porque a tarefa termina no domingo (parada de fábrica).</td></tr>
+      <tr><td>sex 08:00 → seg 17:00</td><td>8h + 8h</td><td>Sábado e domingo ficam de fora: a tarefa não começa nem termina neles.</td></tr>
+      <tr><td>sex 18:00 → dom 17:00, 20h por pessoa</td><td>5,5h + 7,3h + 7,3h</td><td>Com horas informadas, o total é repartido na proporção dos trechos.</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>"Quem está livre?"</strong> usa outra conta (<code>disponiveis</code>): sem ausência, sem tarefa no mesmo horário e com horas sobrando em cada dia e semana do período. Assim, quem faz 30h por semana ou 6h por dia aparece livre se a agenda estiver vazia, mesmo que uma tarefa do período inteiro passasse da carga dela.</p>
+
+  <h3>O que acontece depois da proposta</h3>
+  <ul>
+    <li>A proposta fica gravada como <em>proposta</em> até alguém confirmar. Uma proposta nova substitui a anterior.</li>
+    <li>Na confirmação, as regras são checadas de novo com a agenda daquele momento.</li>
+    <li>Ao registrar ausência, editar ou remarcar, o sistema devolve quem já estava confirmado e deixou de cumprir as regras (<code>revalidar_confirmadas</code>).</li>
+    <li>Substituir é cancelar a alocação antiga e confirmar a nova na mesma vaga, com as regras checadas. Se a nova falhar, a antiga volta.</li>
+  </ul>
+</section>
+
+<!-- ======================================================= 9 -->
+<section id="agente" class="prose">
+  <h2 class="cap"><span class="n">9</span>Agente de IA</h2>
+  <p>No agente, <strong>o modelo escolhe a intenção e o código decide</strong>. Para cada mensagem, o modelo recebe o contexto e devolve uma única intenção com campos preenchidos, como <code>CriarTarefa</code> com título, data e vagas. Daí em diante tudo é código: a prévia, os horários padrão, a escolha das pessoas e o texto da resposta.</p>
+
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 1000 330" role="img" aria-label="Grafo do agente: do início vai para interpretar (única chamada ao modelo). Consultas vão para consultar e terminam. Pedidos de escrita vão para preparar, que monta a prévia; aprovar pausa até o gestor tocar num botão; executar grava. Se a equipe mudou, volta a preparar. Se alguém foi atingido, vai para substituir, que pausa a cada pessoa. Um imprevisto avisado pela equipe começa direto em substituir.">
+        <defs>
+          <marker id="ag-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <!-- início -->
+        <circle class="dot" cx="30" cy="150" r="8"/>
+        <text x="30" y="128" text-anchor="middle" class="s">início</text>
+        <line class="ln" x1="38" y1="150" x2="78" y2="150" marker-end="url(#ag-a)"/>
+        <path class="ln" d="M30,158 V290 H538" marker-end="url(#ag-a)"/>
+        <text x="46" y="282" class="lbl">imprevisto avisado pela equipe</text>
+
+        <!-- interpretar -->
+        <rect class="ia" x="80" y="127" width="150" height="46" rx="10"/>
+        <text x="155" y="147" text-anchor="middle" class="t">interpretar</text>
+        <text x="155" y="164" text-anchor="middle" class="s">chama o modelo</text>
+        <line class="ln" x1="155" y1="173" x2="155" y2="214" marker-end="url(#ag-a)"/>
+        <circle cx="155" cy="224" r="8" class="box" style="stroke:currentColor"/><circle cx="155" cy="224" r="3.5" class="dot"/>
+        <text x="170" y="228" class="lbl">resposta direta ou pergunta</text>
+
+        <!-- consultar -->
+        <path class="ln" d="M195,127 V53 H328" marker-end="url(#ag-a)"/>
+        <text x="208" y="46" class="lbl">consulta</text>
+        <rect class="box" x="330" y="30" width="140" height="46" rx="10"/>
+        <text x="400" y="50" text-anchor="middle" class="t">consultar</text>
+        <text x="400" y="67" text-anchor="middle" class="s">só leitura</text>
+        <line class="ln" x1="470" y1="53" x2="505" y2="53" marker-end="url(#ag-a)"/>
+        <circle cx="515" cy="53" r="8" class="box" style="stroke:currentColor"/><circle cx="515" cy="53" r="3.5" class="dot"/>
+
+        <!-- preparar -->
+        <line class="ln" x1="230" y1="150" x2="328" y2="150" marker-end="url(#ag-a)"/>
+        <text x="279" y="142" text-anchor="middle" class="lbl">escrita</text>
+        <rect class="box" x="330" y="127" width="140" height="46" rx="10"/>
+        <text x="400" y="147" text-anchor="middle" class="t">preparar</text>
+        <text x="400" y="164" text-anchor="middle" class="s">monta a prévia</text>
+
+        <!-- aprovar -->
+        <line class="ln" x1="470" y1="150" x2="538" y2="150" marker-end="url(#ag-a)"/>
+        <text x="504" y="142" text-anchor="middle" class="lbl">prévia</text>
+        <rect class="pause" x="540" y="127" width="140" height="46" rx="10"/>
+        <text x="610" y="147" text-anchor="middle" class="t">aprovar</text>
+        <text x="610" y="164" text-anchor="middle" class="s">pausa · interrupt()</text>
+
+        <!-- executar -->
+        <line class="ln" x1="680" y1="150" x2="748" y2="150" marker-end="url(#ag-a)"/>
+        <text x="714" y="142" text-anchor="middle" class="lbl">botão</text>
+        <rect class="box" x="750" y="127" width="140" height="46" rx="10"/>
+        <text x="820" y="147" text-anchor="middle" class="t">executar</text>
+        <text x="820" y="164" text-anchor="middle" class="s">grava pelos serviços</text>
+        <line class="ln" x1="890" y1="150" x2="945" y2="150" marker-end="url(#ag-a)"/>
+        <circle cx="955" cy="150" r="8" class="box" style="stroke:currentColor"/><circle cx="955" cy="150" r="3.5" class="dot"/>
+        <path class="ln" d="M820,127 C820,92 400,92 400,125" marker-end="url(#ag-a)"/>
+        <text x="610" y="88" text-anchor="middle" class="lbl">a equipe mudou: nova prévia</text>
+
+        <!-- substituir -->
+        <path class="ln" d="M820,173 V262 H682" marker-end="url(#ag-a)"/>
+        <text x="830" y="222" class="lbl">alguém foi atingido</text>
+        <path class="ln" d="M400,173 V262 H538" marker-end="url(#ag-a)"/>
+        <text x="410" y="222" class="lbl">tirar da tarefa</text>
+        <rect class="pause" x="540" y="250" width="140" height="46" rx="10"/>
+        <text x="610" y="270" text-anchor="middle" class="t">substituir</text>
+        <text x="610" y="287" text-anchor="middle" class="s">pausa · uma por vez</text>
+        <path class="ln" d="M585,296 C585,324 635,324 635,300" marker-end="url(#ag-a)"/>
+        <text x="645" y="320" class="lbl">próxima pendência</text>
+        <line class="ln" x1="680" y1="286" x2="723" y2="286" marker-end="url(#ag-a)"/>
+        <circle cx="733" cy="286" r="8" class="box" style="stroke:currentColor"/><circle cx="733" cy="286" r="3.5" class="dot"/>
+      </svg>
+    </div>
+    <figcaption><b>O grafo LangGraph (<code>grafo.py</code>).</b> Só o nó azul chama o modelo. Os nós laranja pausam com <code>interrupt()</code> e esperam o gestor: nada é gravado antes disso. Os círculos marcam onde a conversa termina. Um imprevisto avisado pela equipe, ou a aprovação de um pedido de ausência, entra direto na escolha de substituto.</figcaption>
+  </figure>
+
+  <h3>As intenções</h3>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Tipo</th><th>Intenções</th><th>Comportamento</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Escrita</td><td><code>CriarTarefa</code>, <code>AlocarTarefa</code>, <code>IncluirNaTarefa</code>, <code>RegistrarAusencia</code>, <code>TirarDaTarefa</code>, <code>SubstituirNaTarefa</code>, <code>EncerrarTarefa</code>, <code>RemarcarTarefa</code></td><td>Passam por preparar → aprovar → executar</td></tr>
+      <tr><td class="k">Consulta</td><td><code>ConsultarDisponibilidade</code>, <code>ConsultarAgenda</code>, <code>VerTarefa</code>, <code>ListarTarefas</code>, <code>ConsultarVencimentos</code>, <code>ConsultarContrato</code></td><td>Respondem na hora</td></tr>
+      <tr><td class="k">Texto</td><td><code>Responder</code></td><td>Pergunta o que falta, cumprimenta ou responde sobre a equipe usando só os dados do contexto</td></tr>
+      <tr><td class="k">Modo equipe</td><td><code>MinhaAgenda</code>, <code>MinhaTarefa</code>, <code>InformarAusencia</code>, <code>ResponderEquipe</code></td><td>Uma chamada por mensagem, sem histórico, só com os dados da pessoa</td></tr>
+    </tbody>
+  </table></div>
+  <p>Cada intenção é uma classe Pydantic com campos simples (texto e número), porque modelos pequenos erram menos assim. O LangChain transforma as classes em "ferramentas" e o modelo é obrigado a escolher uma (<code>tool_choice="any"</code>). Se os campos vierem inválidos, o bot pede mais detalhes.</p>
+
+  <h3>Trocar o modelo de IA</h3>
+  <p>O provedor fica em <code>LLM_PROVIDER</code> no <code>.env</code>, e cada um tem chave e modelo próprios. Para trocar, mude essa linha e reinicie o bot e o painel. Todos são chat models do LangChain com a mesma interface (<code>bind_tools</code>, <code>with_structured_output</code>), então o agente e a extração de contratos funcionam com qualquer um. A escolha fica em <code>app/provedores.py</code>.</p>
+  <div class="tabela compacta"><table>
+    <thead><tr><th><code>LLM_PROVIDER</code></th><th>Chave</th><th>Modelo (padrão)</th><th>Voz</th></tr></thead>
+    <tbody>
+      <tr><td><code>gemini</code> (padrão)</td><td><code>GEMINI_API_KEY</code></td><td><code>GEMINI_MODEL</code> (<code>gemini-3.5-flash-lite</code>)</td><td>sim</td></tr>
+      <tr><td><code>anthropic</code> ou <code>claude</code></td><td><code>ANTHROPIC_API_KEY</code></td><td><code>ANTHROPIC_MODEL</code> (<code>claude-haiku-5-5</code>)</td><td>não</td></tr>
+      <tr><td><code>openai</code></td><td><code>OPENAI_API_KEY</code></td><td><code>OPENAI_MODEL</code> (<code>gpt-5-mini</code>)</td><td>não</td></tr>
+      <tr><td><code>ollama</code> (local, grátis)</td><td>—</td><td><code>OLLAMA_MODEL</code> (<code>qwen3</code>)</td><td>não</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><strong>APIs compatíveis com a da OpenAI</strong> (OpenRouter, Groq, DeepSeek, LM Studio...): <code>LLM_PROVIDER=openai</code>, a URL em <code>OPENAI_BASE_URL</code> e a chave do serviço em <code>OPENAI_API_KEY</code>.</li>
+    <li><strong>Ollama:</strong> instale em ollama.com e baixe o modelo antes (<code>ollama pull qwen3</code>).</li>
+    <li><strong>Outro provedor do LangChain</strong> (Mistral, Bedrock...): instale a integração e acrescente uma entrada em <code>PROVEDORES</code>, em <code>app/provedores.py</code>.</li>
+    <li><strong>Conferir:</strong> <code>python -m scripts.verificar</code> mostra o provedor em uso e faz uma chamada de teste.</li>
+  </ul>
+
+  <h3>O que o modelo vê</h3>
+  <div class="grid2">
+    <div class="item"><h4>Recebe</h4><p>A data e a hora de hoje com o dia da semana · as funções cadastradas · os códigos dos contratos · cada funcionário ativo com id, nome, função, especialidades com nível e certificações com validade (as vencidas marcadas como VENCIDA) · até 40 tarefas em andamento, das mais próximas para as mais distantes · as últimas 8 mensagens da conversa.</p></div>
+    <div class="item"><h4>Não recebe</h4><p>E-mail · ID do Telegram · o texto livre de experiências · dados de outras pessoas, no modo equipe. A seção 12 resume o que vai para o provedor.</p></div>
+  </div>
+
+  <h3>Valores padrão</h3>
+  <ul>
+    <li>O modelo devolve datas em AAAA-MM-DD, calculadas a partir de hoje ("amanhã", "sexta").</li>
+    <li>Sem hora dita, tarefas valem 08:00–17:00 e ausências valem o dia inteiro.</li>
+    <li>Remarcar mantém o horário e a duração em dias que não foram ditos.</li>
+    <li>Quantidade não dita é 1; prioridade não dita é 3; "urgente" é 5.</li>
+  </ul>
+
+  <h3>O caminho de uma mensagem</h3>
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 1000 545" role="img" aria-label="Sequência de um pedido: o gestor manda a mensagem, o bot passa ao agente, o agente chama o modelo de IA, recebe a intenção, simula a proposta, manda a prévia com botões e pausa. O gestor toca no botão, o agente retoma e confirma a equipe da prévia nos serviços. O bot, a cada 15 segundos, lê os avisos pendentes e manda o aviso ao técnico.">
+        <defs>
+          <marker id="sq-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <g>
+          <rect class="ext" x="5" y="10" width="130" height="36" rx="8"/><text x="70" y="33" text-anchor="middle" class="t">Gestor</text>
+          <rect class="ext" x="165" y="10" width="130" height="36" rx="8"/><text x="230" y="33" text-anchor="middle" class="t">Bot</text>
+          <rect class="box" x="335" y="10" width="130" height="36" rx="8"/><text x="400" y="33" text-anchor="middle" class="t">Agente (grafo)</text>
+          <rect class="ia" x="495" y="10" width="130" height="36" rx="8"/><text x="560" y="33" text-anchor="middle" class="t">Modelo de IA</text>
+          <rect class="core" x="665" y="10" width="130" height="36" rx="8"/><text x="730" y="33" text-anchor="middle" class="t">Serviços + banco</text>
+          <rect class="ext" x="845" y="10" width="130" height="36" rx="8"/><text x="910" y="33" text-anchor="middle" class="t">Técnico</text>
+        </g>
+        <line class="lane" x1="70" y1="46" x2="70" y2="535"/>
+        <line class="lane" x1="230" y1="46" x2="230" y2="535"/>
+        <line class="lane" x1="400" y1="46" x2="400" y2="535"/>
+        <line class="lane" x1="560" y1="46" x2="560" y2="535"/>
+        <line class="lane" x1="730" y1="46" x2="730" y2="535"/>
+        <line class="lane" x1="910" y1="46" x2="910" y2="535"/>
+
+        <!-- 1 -->
+        <line class="ln" x1="82" y1="78" x2="228" y2="78" marker-end="url(#sq-a)"/><circle class="nc" cx="70" cy="78" r="10"/><text x="70" y="82" text-anchor="middle" class="nct">1</text>
+        <text x="150" y="71" text-anchor="middle" class="lbl">texto ou áudio</text>
+        <!-- 2 -->
+        <line class="ln" x1="242" y1="122" x2="398" y2="122" marker-end="url(#sq-a)"/><circle class="nc" cx="230" cy="122" r="10"/><text x="230" y="126" text-anchor="middle" class="nct">2</text>
+        <text x="318" y="115" text-anchor="middle" class="lbl">enviar()</text>
+        <!-- 3 -->
+        <line class="ln" x1="412" y1="166" x2="558" y2="166" marker-end="url(#sq-a)"/><circle class="nc" cx="400" cy="166" r="10"/><text x="400" y="170" text-anchor="middle" class="nct">3</text>
+        <text x="482" y="159" text-anchor="middle" class="lbl">contexto + mensagem</text>
+        <!-- 4 -->
+        <line class="ln" x1="548" y1="210" x2="402" y2="210" marker-end="url(#sq-a)"/><circle class="nc" cx="560" cy="210" r="10"/><text x="560" y="214" text-anchor="middle" class="nct">4</text>
+        <text x="478" y="203" text-anchor="middle" class="lbl">intenção + campos</text>
+        <!-- 5 -->
+        <line class="ln" x1="412" y1="254" x2="728" y2="254" marker-end="url(#sq-a)"/><circle class="nc" cx="400" cy="254" r="10"/><text x="400" y="258" text-anchor="middle" class="nct">5</text>
+        <text x="565" y="247" text-anchor="middle" class="lbl">simula a proposta (nada gravado)</text>
+        <!-- 6 -->
+        <line class="ln" x1="388" y1="298" x2="72" y2="298" marker-end="url(#sq-a)"/><circle class="nc" cx="400" cy="298" r="10"/><text x="400" y="302" text-anchor="middle" class="nct">6</text>
+        <text x="235" y="291" text-anchor="middle" class="lbl">prévia + botões · o grafo pausa</text>
+        <!-- 7 -->
+        <line class="ln" x1="82" y1="342" x2="228" y2="342" marker-end="url(#sq-a)"/><circle class="nc" cx="70" cy="342" r="10"/><text x="70" y="346" text-anchor="middle" class="nct">7</text>
+        <text x="150" y="335" text-anchor="middle" class="lbl">toca no botão</text>
+        <!-- 8 -->
+        <line class="ln" x1="242" y1="386" x2="398" y2="386" marker-end="url(#sq-a)"/><circle class="nc" cx="230" cy="386" r="10"/><text x="230" y="390" text-anchor="middle" class="nct">8</text>
+        <text x="318" y="379" text-anchor="middle" class="lbl">decidir() · retoma</text>
+        <!-- 9 -->
+        <line class="ln" x1="412" y1="430" x2="728" y2="430" marker-end="url(#sq-a)"/><circle class="nc" cx="400" cy="430" r="10"/><text x="400" y="434" text-anchor="middle" class="nct">9</text>
+        <text x="565" y="423" text-anchor="middle" class="lbl">cria e confirma a equipe da prévia</text>
+        <!-- 10 -->
+        <line class="ln" x1="242" y1="474" x2="728" y2="474" marker-end="url(#sq-a)"/><circle class="nc" cx="230" cy="474" r="10"/><text x="230" y="478" text-anchor="middle" class="nct">10</text>
+        <text x="480" y="467" text-anchor="middle" class="lbl">a cada 15 s: há avisos pendentes?</text>
+        <!-- 11 -->
+        <line class="ln" x1="242" y1="518" x2="908" y2="518" marker-end="url(#sq-a)"/><circle class="nc" cx="230" cy="518" r="10"/><text x="230" y="522" text-anchor="middle" class="nct">11</text>
+        <text x="570" y="511" text-anchor="middle" class="lbl">aviso com Ciente / Tive um imprevisto</text>
+      </svg>
+    </div>
+    <figcaption><b>Do pedido no Telegram ao aviso para o técnico.</b> Só os passos 3 e 4 envolvem a IA. Entre os passos 6 e 8, o estado da conversa fica salvo em <code>agente.db</code>: se o bot reiniciar, o botão continua funcionando.</figcaption>
+  </figure>
+  <ol class="passos small">
+    <li><div>O gestor manda a mensagem. O bot confere se a pessoa é gestor ou funcionário com ID cadastrado.</div></li>
+    <li><div>O bot chama <code>Agente.enviar</code>. Uma trava por conversa garante que duas mensagens ou dois toques rápidos não rodem ao mesmo tempo.</div></li>
+    <li><div>O nó "interpretar" monta o contexto e chama o modelo uma vez.</div></li>
+    <li><div>O modelo devolve uma intenção. O código valida os campos.</div></li>
+    <li><div>O nó "preparar" simula a proposta pelo motor e guarda na prévia exatamente quem foi mostrado.</div></li>
+    <li><div>O bot envia a prévia com botões, e o grafo pausa com <code>interrupt()</code>.</div></li>
+    <li><div>O gestor toca no botão (ou escreve "sim"). Botões de pedidos antigos são ignorados.</div></li>
+    <li><div>O bot chama <code>Agente.decidir</code>, que retoma o grafo no nó "executar".</div></li>
+    <li><div>Os serviços criam a tarefa e confirmam as pessoas da prévia, conferindo as regras de novo. Na mesma transação, gravam a auditoria e o aviso na caixa de saída.</div></li>
+    <li><div>O ciclo do bot procura avisos pendentes a cada 15 segundos.</div></li>
+    <li><div>O técnico recebe o aviso com os botões de resposta.</div></li>
+  </ol>
+
+  <h3>Estado, conversas e erros</h3>
+  <ul>
+    <li><strong>Estado persistente.</strong> O LangGraph salva cada passo em <code>agente.db</code> (SqliteSaver, modo WAL). O histórico guardado é limitado a 20 mensagens.</li>
+    <li><strong>Conversas separadas.</strong> Em conversa privada a chave é o chat; em grupo é chat + pessoa.</li>
+    <li><strong>Erros traduzidos.</strong> Falhas do modelo viram mensagens claras que citam o provedor e a variável do <code>.env</code> a corrigir: conta sem crédito (402 no Gemini pré-pago, saldo do Claude, <code>insufficient_quota</code> da OpenAI), limite de uso (429), provedor sobrecarregado, chave recusada, modelo não encontrado, Ollama fechado.</li>
+    <li><strong>Textos em código.</strong> As respostas são montadas em <code>formatar.py</code> com os dados do banco, sem chamar o modelo.</li>
+  </ul>
+</section>
+
+<!-- ======================================================= 10 -->
+<section id="avisos" class="prose">
+  <h2 class="cap"><span class="n">10</span>Avisos e ausências</h2>
+  <p>Quando alguém é escalado, removido ou tem a tarefa remarcada, <code>services.py</code> grava um aviso na tabela <code>notificacoes</code>, na mesma transação da mudança. O bot lê essa caixa de saída e envia. Assim o painel funciona sem o Telegram, e o aviso fica na fila se o Telegram estiver fora do ar.</p>
+  <figure>
+    <div class="diagrama">
+      <svg class="dg" viewBox="0 0 1000 225" role="img" aria-label="Caixa de saída: uma mudança na escala grava um aviso pendente; o bot lê a cada 15 segundos e envia ao técnico; se o técnico toca em Tive um imprevisto, os gestores recebem o botão Ver substitutos, que abre a escolha de substituto do agente; a troca é confirmada com as regras checadas de novo.">
+        <defs>
+          <marker id="av-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        </defs>
+        <rect class="box" x="10" y="20" width="210" height="56" rx="8"/>
+        <text x="115" y="44" text-anchor="middle" class="t">Mudança na escala</text>
+        <text x="115" y="62" text-anchor="middle" class="s">confirmar, tirar, remarcar</text>
+        <line class="ln" x1="220" y1="48" x2="288" y2="48" marker-end="url(#av-a)"/>
+        <text x="254" y="40" text-anchor="middle" class="lbl">grava</text>
+        <rect class="core" x="290" y="20" width="190" height="56" rx="8"/>
+        <text x="385" y="44" text-anchor="middle" class="t">notificacoes</text>
+        <text x="385" y="62" text-anchor="middle" class="s">situação: pendente</text>
+        <line class="ln" x1="480" y1="48" x2="548" y2="48" marker-end="url(#av-a)"/>
+        <text x="514" y="40" text-anchor="middle" class="lbl">lê</text>
+        <rect class="box" x="550" y="20" width="190" height="56" rx="8"/>
+        <text x="645" y="44" text-anchor="middle" class="t">Bot · a cada 15 s</text>
+        <text x="645" y="62" text-anchor="middle" class="s">envia e marca enviada</text>
+        <line class="ln" x1="740" y1="48" x2="808" y2="48" marker-end="url(#av-a)"/>
+        <text x="774" y="40" text-anchor="middle" class="lbl">aviso</text>
+        <rect class="ext" x="810" y="20" width="180" height="56" rx="8"/>
+        <text x="900" y="44" text-anchor="middle" class="t">Técnico</text>
+        <text x="900" y="62" text-anchor="middle" class="s">no Telegram</text>
+
+        <line class="ln" x1="900" y1="76" x2="900" y2="148" marker-end="url(#av-a)"/>
+        <text x="890" y="116" text-anchor="end" class="lbl">Ciente: só fica anotado</text>
+        <rect class="pause" x="810" y="150" width="180" height="56" rx="8"/>
+        <text x="900" y="174" text-anchor="middle" class="t">Tive um imprevisto</text>
+        <text x="900" y="192" text-anchor="middle" class="s">toque do técnico</text>
+        <line class="ln" x1="810" y1="178" x2="742" y2="178" marker-end="url(#av-a)"/>
+        <rect class="box" x="550" y="150" width="190" height="56" rx="8"/>
+        <text x="645" y="174" text-anchor="middle" class="t">Gestores</text>
+        <text x="645" y="192" text-anchor="middle" class="s">botão "Ver substitutos"</text>
+        <line class="ln" x1="550" y1="178" x2="482" y2="178" marker-end="url(#av-a)"/>
+        <rect class="pause" x="290" y="150" width="190" height="56" rx="8"/>
+        <text x="385" y="174" text-anchor="middle" class="t">Agente: substituir</text>
+        <text x="385" y="192" text-anchor="middle" class="s">até 3 opções com botão</text>
+        <line class="ln" x1="290" y1="178" x2="222" y2="178" marker-end="url(#av-a)"/>
+        <rect class="box" x="10" y="150" width="210" height="56" rx="8"/>
+        <text x="115" y="174" text-anchor="middle" class="t">Troca confirmada</text>
+        <text x="115" y="192" text-anchor="middle" class="s">regras checadas de novo</text>
+      </svg>
+    </div>
+    <figcaption><b>A caixa de saída de avisos.</b> Em cima, o caminho do aviso; embaixo, o que acontece quando o técnico avisa um imprevisto. Os laranja esperam uma decisão de pessoa.</figcaption>
+  </figure>
+  <ul>
+    <li>Só vira aviso quem tem ID do Telegram cadastrado, com <code>AVISOS_EQUIPE</code> ligado, e para tarefas que ainda não acabaram.</li>
+    <li>Avisos pendentes há mais de 2 dias, ou de tarefas que já terminaram, expiram sem ser enviados.</li>
+    <li>Se o envio falha (a pessoa nunca mandou <code>/start</code>, bloqueou o bot), o aviso fica marcado como "falhou".</li>
+    <li>A resposta (ciente ou imprevisto) fica gravada no aviso e na auditoria. Se a escala já mudou, o imprevisto só é anotado.</li>
+  </ul>
+  <h3>Pedidos de ausência</h3>
+  <p>Quando um funcionário escreve "estou de atestado hoje", o modo equipe cria um pedido (<code>SolicitacaoAusencia</code>) em vez de gravar a ausência. Os gestores recebem o pedido no Telegram com <b>Aprovar</b> e <b>Recusar</b>, e ele também aparece na página inicial do painel. Ao aprovar, o pedido vira indisponibilidade, o bot já abre a escolha de substituto para as tarefas atingidas e o funcionário recebe a resposta.</p>
+</section>
+
+<!-- ======================================================= 11 -->
+<section id="contratos" class="prose">
+  <h2 class="cap"><span class="n">11</span>Contratos</h2>
+  <p>Uma tarefa com o campo "Contrato" igual ao código de um contrato cadastrado passa a seguir as regras dele. A comparação ignora maiúsculas e espaços nas pontas.</p>
+  <div class="grid3">
+    <div class="item"><h4>Regras aplicadas pelo motor</h4><p>Antes de avaliar, cada vaga recebe as certificações do contrato e a maior experiência mínima entre a da vaga e a do contrato (<code>efetivo</code>). O motivo de rejeição diz "exigência do contrato CT-…".</p></div>
+    <div class="item"><h4>Aviso de técnico de segurança</h4><p>Se o contrato exige técnico de segurança e a tarefa não tem essa vaga, o painel e o bot avisam.</p></div>
+    <div class="item"><h4>Perguntas sobre cláusulas</h4><p>O texto fica no cadastro. O bot quebra em cláusulas e devolve as 3 mais ligadas à pergunta, na ordem do contrato.</p></div>
+  </div>
+  <h3>A busca de cláusulas</h3>
+  <p>A busca é por palavras, com uma versão simplificada do BM25: palavras raras no contrato valem mais que palavras comuns, e cláusulas curtas não são prejudicadas. Palavras vazias como "de", "qual", "contrato" e "diz" são ignoradas, e acentos não importam. Roda em SQLite ou Postgres, sem chamar o modelo de IA.</p>
+  <h3>Extração de exigências com IA</h3>
+  <p>Na página do contrato, o botão "Extrair exigências do texto com IA" manda o texto ao modelo de IA uma vez, pedindo uma resposta estruturada: cliente, certificações obrigatórias, experiência mínima, se exige técnico de segurança e observações. O que for encontrado é somado ao cadastro. Confira o resultado, porque a extração pode errar.</p>
+</section>
+
+<!-- ======================================================= 12 -->
+<section id="seguranca" class="prose">
+  <h2 class="cap"><span class="n">12</span>Segurança e privacidade</h2>
+  <p>Sem configuração, o painel e a API ficam abertos, para uso no próprio computador. Para expor na rede, defina <code>PAINEL_SENHA</code>, <code>API_TOKEN</code> e <code>SECRET_KEY</code>.</p>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Proteção</th><th>Como funciona</th><th>Quando vale</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Login do painel</td><td>Senha única de gestor, comparada em tempo constante. A sessão é um cookie assinado com HMAC-SHA256, <code>HttpOnly</code>, <code>SameSite=Lax</code>, válido por 7 dias. Depois do login, só redireciona para dentro do painel.</td><td>Com <code>PAINEL_SENHA</code></td></tr>
+      <tr><td class="k">Token da API</td><td><code>Authorization: Bearer &lt;token&gt;</code> em todas as rotas <code>/api/*</code>.</td><td>Com <code>API_TOKEN</code></td></tr>
+      <tr><td class="k">CSRF</td><td>Todo formulário leva um token igual ao do cookie <code>csrf</code>, que outro site não consegue ler. POST com <code>Origin</code> de outro site é bloqueado.</td><td>Sempre</td></tr>
+      <tr><td class="k">Avisos de tela</td><td>"Proposta gerada" e erros vão num cookie assinado de 2 minutos, não na URL. F5 não repete e ninguém forja o texto.</td><td>Sempre</td></tr>
+      <tr><td class="k">Agenda <code>.ics</code></td><td>Apps de calendário não fazem login, então o link leva um token derivado da <code>SECRET_KEY</code> e do id do funcionário.</td><td>Sempre</td></tr>
+      <tr><td class="k">Bot</td><td>Gestores por lista (de preferência ID numérico, porque um @usuário pode ser trocado). Equipe só em conversa privada e com ID no cadastro. Botões de outro gestor são recusados.</td><td>Sempre</td></tr>
+      <tr><td class="k">Docker</td><td>Containers com usuário sem privilégios, healthcheck em <code>/saude</code> (que testa o banco com <code>SELECT 1</code>) e fuso <code>America/Sao_Paulo</code>.</td><td>No Docker</td></tr>
+    </tbody>
+  </table></div>
+  <div class="nota laranja"><strong>Privacidade</strong>Os nomes dos funcionários, suas funções, especialidades e certificações, as tarefas em andamento e os áudios vão para o provedor de IA escolhido (o Google, no padrão) a cada mensagem do bot. E-mail, ID do Telegram e o texto livre de experiências não vão. No plano gratuito do Gemini, o Google pode usar o que é enviado para melhorar os modelos. Com o Ollama, nada sai do computador. O painel e a API só usam a IA na extração de exigências de contratos.</div>
+</section>
+
+<!-- ======================================================= 13 -->
+<section id="infra" class="prose">
+  <h2 class="cap"><span class="n">13</span>Datas, banco e processos</h2>
+  <h3>Datas e fuso</h3>
+  <p>Todas as datas são horário local de <code>APP_TIMEZONE</code> (padrão <code>America/Sao_Paulo</code>) e são guardadas sem fuso. O código usa <code>agora()</code> e <code>hoje()</code> de <code>relogio.py</code> em vez de <code>datetime.now()</code>: num container em UTC, depois das 21h de Brasília o "hoje" do sistema operacional já seria amanhã. Datas com fuso que chegam pela API são convertidas na entrada, para nunca misturar os dois tipos numa comparação.</p>
+  <h3>Banco</h3>
+  <ul>
+    <li><strong>SQLite</strong> por padrão, com <code>journal_mode=WAL</code>, <code>busy_timeout</code> e chaves estrangeiras ligadas. Painel e bot podem gravar no mesmo arquivo: um espera o outro em vez de falhar com "database is locked".</li>
+    <li><strong>PostgreSQL 16</strong> no Docker, na imagem <code>pgvector/pgvector:pg16</code>.</li>
+    <li>As tabelas são criadas na inicialização (<code>create_all</code>). Ajustes de colunas em bancos existentes ficam numa lista em <code>db.py</code>.</li>
+    <li>Relacionamentos carregados em lote (<code>selectin</code>, <code>contains_eager</code>) para não fazer uma consulta por linha.</li>
+  </ul>
+  <h3>Processos</h3>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Processo</th><th>Comando</th><th>Depende de</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Painel + API</td><td><code>uvicorn app.main:app</code></td><td>Banco. Modelo de IA só para extrair contratos.</td></tr>
+      <tr><td class="k">Bot</td><td><code>python -m app.bot</code></td><td>Banco, modelo de IA, Telegram. Não depende do painel.</td></tr>
+      <tr><td class="k">Banco (Docker)</td><td><code>pgvector/pgvector:pg16</code></td><td>Volume <code>pgdata</code>. O bot guarda <code>agente.db</code> no volume <code>agente</code>.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================================================= 14 -->
+<section id="tecnologias" class="prose">
+  <h2 class="cap"><span class="n">14</span>Tecnologias</h2>
+  <div class="tabela compacta"><table>
+    <thead><tr><th>Tecnologia</th><th>Versão</th><th>Papel no sistema</th></tr></thead>
+    <tbody>
+      <tr class="grupo"><td colspan="3">Base</td></tr>
+      <tr><td class="k">Python</td><td>3.12</td><td>Linguagem de todo o sistema (imagem <code>python:3.12-slim</code>)</td></tr>
+      <tr><td class="k">FastAPI</td><td>0.115.6</td><td>Rotas do painel e da API, validação, documentação em <code>/docs</code></td></tr>
+      <tr><td class="k">Uvicorn</td><td>0.34.0</td><td>Servidor web</td></tr>
+      <tr><td class="k">Jinja2</td><td>3.1.5</td><td>HTML do painel, gerado no servidor</td></tr>
+      <tr><td class="k">Pydantic</td><td>2.14.3</td><td>Schemas da API e intenções do agente</td></tr>
+      <tr><td class="k">SQLAlchemy</td><td>2.0.36</td><td>Tabelas e consultas; o mesmo código em SQLite e Postgres</td></tr>
+      <tr><td class="k">SQLite / PostgreSQL</td><td>— / 16 + pgvector</td><td>Banco local / banco no Docker</td></tr>
+      <tr><td class="k">psycopg</td><td>3.2.3</td><td>Driver do Postgres</td></tr>
+      <tr class="grupo"><td colspan="3">IA e bot</td></tr>
+      <tr><td class="k">LangGraph</td><td>1.2.22</td><td>Grafo do agente e pausas com <code>interrupt()</code></td></tr>
+      <tr><td class="k">langgraph-checkpoint-sqlite</td><td>3.1.3</td><td>Estado das conversas em <code>agente.db</code></td></tr>
+      <tr><td class="k">LangChain Core</td><td>1.8.1</td><td>Mensagens e a interface comum de chat model com ferramentas</td></tr>
+      <tr><td class="k">langchain-google-genai · -anthropic · -openai · -ollama</td><td>4.5.0 · 1.7.10 · 1.8.1 · 1.1.0</td><td>Integração de cada provedor de IA, escolhido em <code>LLM_PROVIDER</code></td></tr>
+      <tr><td class="k">google-genai</td><td>3.4.0</td><td>Usado por <code>scripts/verificar.py</code></td></tr>
+      <tr><td class="k">Google Gemini (padrão)</td><td><code>gemini-3.5-flash-lite</code></td><td>Interpretar pedidos (texto e voz) e extrair regras de contratos. Troca por Claude, OpenAI ou Ollama no <code>.env</code></td></tr>
+      <tr><td class="k">python-telegram-bot</td><td>22.8</td><td>Bot por long polling, botões inline, comandos</td></tr>
+      <tr class="grupo"><td colspan="3">Apoio</td></tr>
+      <tr><td class="k">python-dotenv, tzdata, python-multipart</td><td>—</td><td>Ler o <code>.env</code>, fusos no Windows e em imagens enxutas, formulários</td></tr>
+      <tr><td class="k">pytest + httpx</td><td>8.3.4 / 0.28.1</td><td>115 testes, incluindo o painel e a API</td></tr>
+      <tr><td class="k">Docker Compose</td><td>—</td><td>Serviços <code>db</code>, <code>app</code> e <code>bot</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>Técnicas implementadas à mão, sem biblioteca: fluxo de custo mínimo com SPFA (escolha da equipe), BM25 simplificado (busca de cláusulas), HMAC-SHA256 (cookies e links assinados) e geração de <code>.ics</code>.</p>
+</section>
+
+<!-- ======================================================= 15 -->
+<section id="decisoes" class="prose">
+  <h2 class="cap"><span class="n">15</span>Decisões técnicas</h2>
+  <div class="decisoes">
+    <div class="decisao"><h4>Motor sem IA</h4><dl><dt>Decisão</dt><dd>Motor determinístico; o modelo de IA só traduz a mensagem em intenção.</dd><dt>Por quê</dt><dd>NR vencida e jornada estourada não podem depender de um modelo que erra. O resultado é reproduzível e testável.</dd><dt>Custo</dt><dd>Pedidos fora das intenções previstas não são atendidos; o bot pede para reformular.</dd></dl></div>
+    <div class="decisao"><h4>Uma chamada ao modelo por mensagem</h4><dl><dt>Decisão</dt><dd>Prévias, horários padrão e textos são feitos em código.</dd><dt>Por quê</dt><dd>Cabe na cota gratuita, responde mais rápido e não inventa dados.</dd><dt>Custo</dt><dd>Respostas menos "conversadas".</dd></dl></div>
+    <div class="decisao"><h4>Tudo que grava pede confirmação</h4><dl><dt>Decisão</dt><dd>Pausa com <code>interrupt()</code> e botões; estado salvo em disco.</dd><dt>Por quê</dt><dd>Um erro de interpretação nunca vira escala gravada.</dd><dt>Custo</dt><dd>Um toque a mais em cada pedido.</dd></dl></div>
+    <div class="decisao"><h4>Um núcleo para três entradas</h4><dl><dt>Decisão</dt><dd>Painel, API e bot chamam as mesmas funções de <code>services.py</code>.</dd><dt>Por quê</dt><dd>Uma regra corrigida vale em todo lugar, e a auditoria registra de onde veio cada ação.</dd><dt>Custo</dt><dd>As entradas não podem ter atalhos próprios.</dd></dl></div>
+    <div class="decisao"><h4>Fluxo de custo mínimo</h4><dl><dt>Decisão</dt><dd>Escolha ótima em vez de gulosa.</dd><dt>Por quê</dt><dd>Garante o máximo de vagas preenchidas e, entre essas, a maior soma de pontos.</dd><dt>Custo</dt><dd>Cerca de 60 linhas de algoritmo para manter.</dd></dl></div>
+    <div class="decisao"><h4>Contrato ligado pelo código</h4><dl><dt>Decisão</dt><dd>A tarefa guarda o código como texto; as exigências são somadas a toda vaga na hora de avaliar.</dd><dt>Por quê</dt><dd>Um contrato cadastrado depois já vale para tarefas que citavam o código.</dd><dt>Custo</dt><dd>Código digitado errado não liga nada.</dd></dl></div>
+    <div class="decisao"><h4>Busca de cláusulas por palavras</h4><dl><dt>Decisão</dt><dd>BM25 simplificado, sem embeddings.</dd><dt>Por quê</dt><dd>Roda em SQLite e Postgres, sem modelo local e sem cota.</dd><dt>Custo</dt><dd>Não entende sinônimos.</dd></dl></div>
+    <div class="decisao"><h4>Caixa de saída para avisos</h4><dl><dt>Decisão</dt><dd>Avisos gravados numa tabela junto com a mudança; o bot envia.</dd><dt>Por quê</dt><dd>O painel não precisa do Telegram, e um aviso não se perde numa queda de rede.</dd><dt>Custo</dt><dd>Até cerca de 15 s de atraso, e o bot precisa estar rodando.</dd></dl></div>
+    <div class="decisao"><h4>Long polling no Telegram</h4><dl><dt>Decisão</dt><dd>O bot pergunta ao Telegram em vez de receber webhooks.</dd><dt>Por quê</dt><dd>Funciona sem domínio, HTTPS, IP público ou porta aberta.</dd><dt>Custo</dt><dd>Uma conexão sempre aberta com o Telegram.</dd></dl></div>
+    <div class="decisao"><h4>HTML gerado no servidor</h4><dl><dt>Decisão</dt><dd>Jinja, quase sem JavaScript.</dd><dt>Por quê</dt><dd>Sem etapa de build, abre em qualquer navegador e imprime bem (a OS).</dd><dt>Custo</dt><dd>Menos interatividade; cada ação recarrega a página.</dd></dl></div>
+  </div>
+</section>
+
+<!-- ======================================================= 16 -->
+<section id="limites" class="prose">
+  <h2 class="cap"><span class="n">16</span>Limitações</h2>
+  <ul>
+    <li><strong>Login de senha única.</strong> O painel não tem usuários nem permissões; a auditoria registra "painel" como autor das ações feitas nele.</li>
+    <li><strong>Sem ferramenta de migração.</strong> Tabelas novas são criadas na inicialização; mudanças em colunas existentes entram na lista de ajustes de <code>db.py</code>.</li>
+    <li><strong>Busca de contratos por palavras.</strong> Não entende sinônimos ("penalidade" × "multa").</li>
+    <li><strong>Avisos dependem do bot rodando</strong> e chegam com até cerca de 15 s de atraso.</li>
+    <li><strong>O Gemini do plano gratuito</strong> tem cota e pode usar os dados enviados (dá para trocar de provedor no <code>.env</code>). Sem chave do provedor escolhido, o bot não funciona; o painel e a API seguem normais.</li>
+    <li><strong>Voz só com o Gemini.</strong> Com Claude, OpenAI e Ollama, o bot pede a mensagem em texto.</li>
+    <li><strong>Jornada padrão fixa</strong> em 08h–17h para contar horas e para "livres hoje".</li>
+  </ul>
+</section>
+
+<!-- ======================================================= 17 -->
+<section id="perguntas" class="prose">
+  <h2 class="cap"><span class="n">17</span>Perguntas frequentes</h2>
+  <details class="faq"><summary>A IA escolhe quem vai para o serviço?</summary><div><p>Não. O modelo de IA só transforma a frase do gestor numa intenção com campos (o quê, quando, onde, quantas pessoas de cada função). Quem escolhe é o motor em <code>allocation.py</code>, com regras e pontuação fixas, e quem confirma é o gestor.</p></div></details>
+  <details class="faq"><summary>E se a NR de alguém vencer no meio do serviço?</summary><div><p>A certificação precisa valer até o fim da tarefa, não só no início. Se vencer antes, a pessoa é rejeitada com o motivo. O painel avisa com 30 dias de antecedência e o bot manda o resumo toda segunda.</p></div></details>
+  <details class="faq"><summary>E se alguém faltar?</summary><div><p>O gestor registra a ausência (ou o próprio funcionário avisa pelo bot). O sistema mostra quais tarefas foram atingidas e sugere até 3 substitutos, já conferidos pelas regras. Ninguém é tirado sem o gestor escolher.</p></div></details>
+  <details class="faq"><summary>Dá para passar por cima das regras?</summary><div><p>Dá. "Forçar" confirma mesmo com violação, mas exige um motivo, que fica gravado na alocação e na auditoria. Pelo bot também: ao pedir uma pessoa que viola regras ("coloca a Helena na tarefa 2"), ele lista as violações, oferece "Forçar mesmo assim" e pergunta o motivo antes de gravar.</p></div></details>
+  <details class="faq"><summary>O que acontece se o bot cair no meio de uma aprovação?</summary><div><p>O estado da conversa fica salvo em <code>agente.db</code>. Quando o bot volta, o botão da prévia continua funcionando. Avisos pendentes ficam na tabela de notificações e são enviados quando o bot volta (se tiverem menos de 2 dias).</p></div></details>
+  <details class="faq"><summary>Dois gestores no mesmo grupo atrapalham um ao outro?</summary><div><p>Não. Cada pessoa tem a própria conversa com o bot dentro do grupo, e só quem fez o pedido consegue apertar os botões dele.</p></div></details>
+  <details class="faq"><summary>Funciona sem internet ou sem a chave da IA?</summary><div><p>O painel e a API funcionam sem a IA e sem internet (com SQLite). O bot precisa do Telegram e do modelo de IA, e a extração de exigências de contratos precisa do modelo. Com o Ollama, a IA roda no próprio computador.</p></div></details>
+  <details class="faq"><summary>Onde estão os dados?</summary><div><p>No banco da própria empresa: o arquivo <code>alocacao.db</code> ou o Postgres do Docker. O que sai para fora é o contexto das mensagens do bot, enviado ao provedor de IA escolhido (seção 12).</p></div></details>
+</section>
+
+<footer class="fim">Nomes e dados dos prints e exemplos são fictícios, criados por <code>scripts/seed.py</code>.</footer>
+</main>
+</div>
+
+<dialog id="zoom" aria-label="Print ampliado">
+  <div class="zoom-top"><span class="zoom-cap"></span><button class="copy zoom-close" type="button">Fechar</button></div>
+  <img alt="">
+</dialog>
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(function () {
+  // prints ampliados
+  var dlg = document.getElementById("zoom");
+  var dimg = dlg.querySelector("img");
+  var dcap = dlg.querySelector(".zoom-cap");
+  document.querySelectorAll("button.zoomable").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var img = b.querySelector("img");
+      dimg.src = img.currentSrc || img.src;
+      dimg.alt = img.alt;
+      dcap.textContent = b.getAttribute("data-cap") || img.alt;
+      if (typeof dlg.showModal === "function") { dlg.showModal(); } else { dlg.setAttribute("open", ""); }
+    });
+  });
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+  dlg.querySelector(".zoom-close").addEventListener("click", function () { dlg.close(); });
+
+  // abas da conversa
+  document.querySelectorAll("[data-tabs]").forEach(function (grupo) {
+    var abas = Array.prototype.slice.call(grupo.querySelectorAll("[role=tab]"));
+    function ativar(t) {
+      abas.forEach(function (x) {
+        var on = x === t;
+        x.setAttribute("aria-selected", on ? "true" : "false");
+        x.tabIndex = on ? 0 : -1;
+        document.getElementById(x.getAttribute("aria-controls")).hidden = !on;
+      });
+    }
+    abas.forEach(function (t, i) {
+      t.addEventListener("click", function () { ativar(t); });
+      t.addEventListener("keydown", function (e) {
+        var j = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : null;
+        if (j === null) return;
+        e.preventDefault();
+        var alvo = abas[(j + abas.length) % abas.length];
+        ativar(alvo); alvo.focus();
+      });
+    });
+  });
+
+  // copiar código
+  function selecionar(el) {
+    var r = document.createRange(); r.selectNodeContents(el);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  document.querySelectorAll(".code").forEach(function (bloco) {
+    var btn = bloco.querySelector(".copy"), code = bloco.querySelector("code");
+    if (!btn || !code) return;
+    btn.addEventListener("click", function () {
+      var feito = function () { btn.textContent = "Copiado"; setTimeout(function () { btn.textContent = "Copiar"; }, 1500); };
+      try {
+        navigator.clipboard.writeText(code.innerText).then(feito, function () { selecionar(code); });
+      } catch (e) { selecionar(code); }
+    });
+  });
+
+  // dicas sobre as barras da pontuação
+  var tip = document.getElementById("tip");
+  document.querySelectorAll("[data-tip]").forEach(function (el) {
+    el.addEventListener("mouseenter", function () { tip.textContent = el.getAttribute("data-tip"); tip.hidden = false; });
+    el.addEventListener("mousemove", function (e) {
+      var x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+      tip.style.left = Math.max(8, x) + "px";
+      tip.style.top = (e.clientY + 18) + "px";
+    });
+    el.addEventListener("mouseleave", function () { tip.hidden = true; });
+  });
+
+  // índice: destaca a seção em leitura
+  var links = {};
+  document.querySelectorAll('.toc a[href^="#"]').forEach(function (a) { links[a.getAttribute("href").slice(1)] = a; });
+  if ("IntersectionObserver" in window) {
+    var obs = new IntersectionObserver(function (entradas) {
+      entradas.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        Object.keys(links).forEach(function (k) { links[k].classList.remove("ativo"); });
+        if (links[en.target.id]) links[en.target.id].classList.add("ativo");
+      });
+    }, { rootMargin: "-15% 0px -75% 0px" });
+    document.querySelectorAll("main section[id]").forEach(function (s) { obs.observe(s); });
+  }
+})();
+</script>
